@@ -1,0 +1,3 @@
+# Note: PyO3 finds Python automatically via PATH search.
+# When using nix develop, python3 is in PATH.
+# When using uv run/build, uv sets PYO3_PYTHON automatically.

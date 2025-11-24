@@ -1,0 +1,141 @@
+name: Python CI
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+  SUNSCREEN_LLVM_VERSION: v2025.11.24
+  # SHA256 from sunscreen-llvm.nix
+  SUNSCREEN_LLVM_SHA256: aS0WmsZKAHQ/DT2G0IFVcSZbz3RINWc3AC1OdMX6hMw=
+
+jobs:
+  python-fmt:
+    name: Python format
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: tfhe_client
+    steps:
+      - uses: actions/checkout@v6
+      - uses: astral-sh/setup-uv@v7
+      - run: uv sync
+      - run: uv run ruff format --check .
+
+  python-lint:
+    name: Python lint
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: tfhe_client
+    steps:
+      - uses: actions/checkout@v6
+      - uses: astral-sh/setup-uv@v7
+      - run: uv sync
+      - run: uv run ruff check .
+
+  python-typecheck:
+    name: Python type check
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: tfhe_client
+    steps:
+      - uses: actions/checkout@v6
+      - uses: astral-sh/setup-uv@v7
+      - run: uv sync
+      - run: uv run pyright python/ tests/
+
+  rust-clippy:
+    name: Rust clippy (tfhe_client)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: tfhe_client
+    steps:
+      - uses: actions/checkout@v6
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: tfhe_client -> tfhe_client/target
+      - run: cargo clippy --release --all-targets -- --deny warnings
+
+  python-test:
+    name: Python tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Cache Sunscreen LLVM
+        id: cache-llvm
+        uses: actions/cache@v4
+        with:
+          path: parasol-compiler
+          key: sunscreen-llvm-${{ env.SUNSCREEN_LLVM_VERSION }}-linux-x86-64
+
+      - name: Download Sunscreen LLVM
+        if: steps.cache-llvm.outputs.cache-hit != 'true'
+        run: |
+          mkdir parasol-compiler
+          curl -L -o parasol.tar.gz https://github.com/Sunscreen-tech/sunscreen-llvm/releases/download/${{ env.SUNSCREEN_LLVM_VERSION }}/parasol-compiler-linux-x86-64-2025-11-24.tar.gz
+          EXPECTED_HEX=$(echo "${{ env.SUNSCREEN_LLVM_SHA256 }}" | base64 -d | od -An -tx1 | tr -d ' \n')
+          echo "$EXPECTED_HEX  parasol.tar.gz" | sha256sum -c -
+          tar xzf parasol.tar.gz -C parasol-compiler
+          rm parasol.tar.gz
+
+      - name: Compile FHE programs
+        run: LLVM_DIR=$PWD/parasol-compiler/bin make
+
+      - name: Build program_runner
+        run: cargo build --release -p program_runner
+
+      - uses: astral-sh/setup-uv@v7
+
+      - name: Build extension and run tests
+        working-directory: tfhe_client
+        run: |
+          uv sync
+          uv run maturin develop --release
+          uv run pytest tests/ -v
+
+  build-wheels:
+    name: Build wheels (${{ matrix.os }} ${{ matrix.target }})
+    needs: python-test
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: x86_64
+          - os: ubuntu-latest
+            target: aarch64
+          - os: macos-latest
+            target: aarch64
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Build wheels
+        uses: PyO3/maturin-action@v1
+        with:
+          working-directory: tfhe_client
+          target: ${{ matrix.target }}
+          args: --release --out dist
+          manylinux: auto
+
+      - name: Upload wheels
+        uses: actions/upload-artifact@v4
+        with:
+          name: wheels-${{ matrix.os }}-${{ matrix.target }}
+          path: tfhe_client/dist

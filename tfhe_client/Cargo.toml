@@ -1,0 +1,23 @@
+[package]
+name = "tfhe_client"
+version = "0.1.0"
+edition = "2021"
+description = "Python client for FHE program runner"
+license = "MIT"
+
+[lib]
+name = "tfhe_client"
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+anyhow.workspace = true
+pyo3.workspace = true
+rmp-serde.workspace = true
+serde.workspace = true
+thiserror.workspace = true
+
+parasol_runtime.workspace = true
+program_runner = { path = "../program_runner" }
+
+[dev-dependencies]
+tempfile.workspace = true

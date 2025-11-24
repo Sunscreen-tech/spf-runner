@@ -1,0 +1,66 @@
+name: Rust CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+  SUNSCREEN_LLVM_VERSION: v2025.11.24
+  # SHA256 from sunscreen-llvm.nix
+  SUNSCREEN_LLVM_SHA256: aS0WmsZKAHQ/DT2G0IFVcSZbz3RINWc3AC1OdMX6hMw=
+
+jobs:
+  rust-fmt:
+    name: Format
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - run: cargo fmt --all -- --check
+
+  rust-clippy:
+    name: Clippy
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo clippy --release --all-targets -- --deny warnings
+
+  rust-test:
+    name: Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Cache Sunscreen LLVM
+        id: cache-llvm
+        uses: actions/cache@v4
+        with:
+          path: parasol-compiler
+          key: sunscreen-llvm-${{ env.SUNSCREEN_LLVM_VERSION }}-linux-x86-64
+
+      - name: Download Sunscreen LLVM
+        if: steps.cache-llvm.outputs.cache-hit != 'true'
+        run: |
+          mkdir parasol-compiler
+          curl -L -o parasol.tar.gz https://github.com/Sunscreen-tech/sunscreen-llvm/releases/download/${{ env.SUNSCREEN_LLVM_VERSION }}/parasol-compiler-linux-x86-64-2025-11-24.tar.gz
+          EXPECTED_HEX=$(echo "${{ env.SUNSCREEN_LLVM_SHA256 }}" | base64 -d | od -An -tx1 | tr -d ' \n')
+          echo "$EXPECTED_HEX  parasol.tar.gz" | sha256sum -c -
+          tar xzf parasol.tar.gz -C parasol-compiler
+          rm parasol.tar.gz
+
+      - name: Compile FHE programs
+        run: LLVM_DIR=$PWD/parasol-compiler/bin make
+
+      - run: cargo test --release -- --skip test_restart_server_s3_store

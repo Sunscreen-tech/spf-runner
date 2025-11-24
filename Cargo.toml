@@ -1,0 +1,36 @@
+[workspace]
+members = [
+    "elf_validator",
+    "program_runner",
+    "tfhe_client",
+]
+# Exclude tfhe_client from default builds - it's a PyO3 extension that must be
+# built with maturin, not cargo. Running `cargo build` on it fails because the
+# linker can't resolve Python symbols.
+default-members = [
+    "elf_validator",
+    "program_runner",
+]
+resolver = "2"
+
+[workspace.dependencies]
+anyhow = "1"
+clap = "4"
+env_logger = "0.11"
+log = "0.4"
+pyo3 = { version = "0.27", features = ["extension-module", "abi3-py310"] }
+rand = "0.9"
+rmp-serde = "1"
+serde = { version = "1", features = ["derive"] }
+tempfile = "3"
+thiserror = "2"
+
+parasol_cpu = { git = "https://github.com/Sunscreen-tech/spf.git" }
+parasol_runtime = { git = "https://github.com/Sunscreen-tech/spf.git" }
+
+# Enable optimizations in debug mode for reasonable FHE performance
+[profile.dev]
+opt-level = 2
+
+[profile.dev.package."*"]
+opt-level = 2
