@@ -1,6 +1,6 @@
 use std::process::Command;
 
-use program_runner::{OUTPUT_VERSION, VersionedOutput};
+use program_runner::deserialize_outputs;
 
 mod setup;
 
@@ -30,12 +30,11 @@ fn test_inc() {
     );
 
     let result_bytes = std::fs::read(&result_path).unwrap();
-    let versioned: VersionedOutput = rmp_serde::from_slice(&result_bytes).unwrap();
+    let outputs = deserialize_outputs(&result_bytes).unwrap();
 
-    assert_eq!(versioned.version, OUTPUT_VERSION);
-    assert_eq!(versioned.outputs.len(), 1);
+    assert_eq!(outputs.len(), 1);
 
-    let ct = &versioned.outputs[0];
+    let ct = &outputs[0];
     let result: u64 = setup
         .enc
         .decrypt_glwe_l1(&ct.ciphertext, &setup.secret_key)
@@ -72,12 +71,11 @@ fn test_inc_stdout() {
     );
 
     // Output should be written to stdout
-    let versioned: VersionedOutput = rmp_serde::from_slice(&output.stdout).unwrap();
+    let outputs = deserialize_outputs(&output.stdout).unwrap();
 
-    assert_eq!(versioned.version, OUTPUT_VERSION);
-    assert_eq!(versioned.outputs.len(), 1);
+    assert_eq!(outputs.len(), 1);
 
-    let ct = &versioned.outputs[0];
+    let ct = &outputs[0];
     let result: u64 = setup
         .enc
         .decrypt_glwe_l1(&ct.ciphertext, &setup.secret_key)

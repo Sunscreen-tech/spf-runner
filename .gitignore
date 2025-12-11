@@ -131,7 +131,7 @@ flycheck_*.el
 .LSOverride
 
 # Icon must end with two \r
-Icon
+Icon
 
 # Thumbnails
 ._*
@@ -409,3 +409,6 @@ $RECYCLE.BIN/
 
 .claude/
 CLAUDE.md
+
+# Generated key files
+*.key

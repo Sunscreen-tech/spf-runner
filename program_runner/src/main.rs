@@ -14,8 +14,8 @@ use parasol_runtime::{
     fluent::{DynamicUInt, PackedDynamicUInt},
 };
 use program_runner::{
-    BitWidth, L1GlweCiphertextWithBitWidth, PARAMETERS_VERSION, ParameterType, VersionedOutput,
-    VersionedParameters,
+    BitWidth, L1GlweCiphertextWithBitWidth, ParameterType, deserialize_parameters,
+    serialize_outputs,
 };
 
 #[derive(Parser, Debug)]
@@ -119,23 +119,12 @@ fn main() -> Result<()> {
         Some(path) => path.display().to_string(),
         None => "stdin".to_string(),
     };
-    let versioned: VersionedParameters = rmp_serde::from_slice(&parameters_bytes).map_err(|e| {
+    let parameters = deserialize_parameters(&parameters_bytes).map_err(|e| {
         anyhow!(
-            "failed to deserialize parameters from '{}': {e}. Expected version {} format.",
-            params_source,
-            PARAMETERS_VERSION
+            "failed to deserialize parameters from '{}': {e}",
+            params_source
         )
     })?;
-
-    if versioned.version != PARAMETERS_VERSION {
-        return Err(anyhow!(
-            "unsupported parameters version {}, expected {}",
-            versioned.version,
-            PARAMETERS_VERSION
-        ));
-    }
-
-    let parameters = versioned.parameters;
 
     let mut args_builder = ArgsBuilder::new();
     let mut output_buffers = Vec::new();
@@ -277,9 +266,8 @@ fn main() -> Result<()> {
     }
 
     // serialize versioned output
-    let versioned_output = VersionedOutput::new(outputs);
-    let output_bytes = rmp_serde::to_vec(&versioned_output)
-        .map_err(|e| anyhow!("Failed to serialize output: {e}"))?;
+    let output_bytes =
+        serialize_outputs(&outputs).map_err(|e| anyhow!("failed to serialize output: {e}"))?;
 
     // write to file or stdout
     match &args.output {

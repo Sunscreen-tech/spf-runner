@@ -1,7 +1,7 @@
 use std::{fs::write, num::NonZeroU32, path::PathBuf};
 
 use parasol_runtime::{ComputeKey, DEFAULT_128, Encryption, SecretKey, fluent::PackedUInt16};
-use program_runner::{BitWidth, L1GlweCiphertextWithBitWidth, ParameterType, VersionedParameters};
+use program_runner::{BitWidth, L1GlweCiphertextWithBitWidth, ParameterType, serialize_parameters};
 use rand::{RngCore, rng};
 use tempfile::TempDir;
 
@@ -50,9 +50,8 @@ pub fn setup() -> TestSetup {
     let compute_key_path = test_dir.path().join("computation.key");
     write(&compute_key_path, rmp_serde::to_vec(&compute_key).unwrap()).unwrap();
 
-    let versioned_params = VersionedParameters::new(params);
     let params_path = test_dir.path().join("params");
-    write(&params_path, rmp_serde::to_vec(&versioned_params).unwrap()).unwrap();
+    write(&params_path, serialize_parameters(&params).unwrap()).unwrap();
 
     TestSetup {
         value,

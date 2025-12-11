@@ -1,5 +1,7 @@
 """Tests for validation and error handling."""
 
+from typing import cast
+
 import pytest
 from conftest import BIT_WIDTH_ERROR_MSG, INVALID_BIT_WIDTHS
 from tfhe_client import Ciphertext, ParameterBuilder, Parameters, SecretKey
@@ -159,18 +161,97 @@ class TestBoundaryValues:
             assert keyset.decrypt(ct_signed, signed=True) == 0
 
 
+class TestVersioning:
+    """Tests for version functions."""
+
+    def test_peek_parameters_version_success(self, keyset):
+        """Verify peek_parameters_version returns correct version."""
+        from tfhe_client import ParameterBuilder, get_parameters_version, peek_parameters_version
+
+        params = ParameterBuilder().plaintext(42, 8, signed=False).build()
+        data = params.to_bytes()
+
+        version = peek_parameters_version(data)
+        assert version == get_parameters_version()
+
+    def test_get_version_constants(self):
+        """Verify get_*_version functions return positive integers."""
+        from tfhe_client import get_output_version, get_parameters_version
+
+        assert get_parameters_version() >= 1
+        assert get_output_version() >= 1
+        assert isinstance(get_parameters_version(), int)
+        assert isinstance(get_output_version(), int)
+
+
+def _encode_version(version: int) -> bytes:
+    """Encode a version number as big-endian u32."""
+    return version.to_bytes(4, byteorder="big")
+
+
 class TestVersionMismatch:
     """Tests for version mismatch errors."""
+
+    # Output tests
 
     def test_output_version_mismatch(self):
         """Test that invalid output version raises ValueError."""
         import msgpack
         from tfhe_client import read_outputs
 
-        # Create output bytes with unsupported version
-        bad_output = {"version": 999, "outputs": []}
-        bad_bytes = msgpack.packb(bad_output)
-        assert bad_bytes is not None
+        # Create output bytes with unsupported version using wire format:
+        # [SPFO: 4 bytes][version: 4 bytes big-endian u32][payload: msgpack]
+        payload = cast(bytes, msgpack.packb([]))
+        bad_bytes = b"SPFO" + _encode_version(999) + payload
 
-        with pytest.raises(ValueError, match="unsupported output version 999"):
+        with pytest.raises(ValueError, match="unsupported version 999"):
             read_outputs(bad_bytes)
+
+    def test_output_invalid_magic(self):
+        """Test that invalid magic bytes raise ValueError."""
+        import msgpack
+        from tfhe_client import read_outputs
+
+        payload = cast(bytes, msgpack.packb([]))
+        bad_bytes = b"BAAD" + _encode_version(1) + payload
+
+        with pytest.raises(ValueError, match="invalid magic bytes"):
+            read_outputs(bad_bytes)
+
+    def test_output_truncated_header(self):
+        """Test that truncated header raises ValueError."""
+        from tfhe_client import read_outputs
+
+        # Only 3 bytes - too short for magic + version
+        with pytest.raises(ValueError, match="data too short"):
+            read_outputs(b"SPF")
+
+    # Parameters tests (symmetric with output tests)
+
+    def test_parameters_version_mismatch(self):
+        """Test that invalid parameters version raises ValueError."""
+        import msgpack
+
+        # Create parameter bytes with unsupported version using wire format:
+        # [SPFP: 4 bytes][version: 4 bytes big-endian u32][payload: msgpack]
+        payload = cast(bytes, msgpack.packb([]))
+        bad_bytes = b"SPFP" + _encode_version(999) + payload
+
+        with pytest.raises(ValueError, match="unsupported version 999"):
+            Parameters.from_bytes(bad_bytes)
+
+    def test_parameters_invalid_magic(self):
+        """Test that invalid magic bytes raise ValueError."""
+        import msgpack
+
+        payload = cast(bytes, msgpack.packb([]))
+        bad_bytes = b"BAAD" + _encode_version(1) + payload
+
+        with pytest.raises(ValueError, match="invalid magic bytes"):
+            Parameters.from_bytes(bad_bytes)
+
+    def test_parameters_truncated_header(self):
+        """Test that truncated header raises ValueError."""
+        # Only 3 bytes - too short for magic + version
+        with pytest.raises(ValueError, match="data too short"):
+            Parameters.from_bytes(b"SPF")

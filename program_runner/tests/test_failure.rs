@@ -1,6 +1,6 @@
 use std::{fs::write, path::Path, process::Command};
 
-use program_runner::VersionedParameters;
+use program_runner::PARAMETERS_MAGIC;
 
 mod setup;
 
@@ -210,16 +210,15 @@ fn test_params_file_not_valid() {
 fn test_params_version_mismatch() {
     let setup = setup::setup();
 
-    // Create params with an unsupported version
-    let bad_versioned_params = VersionedParameters {
-        version: 999, // unsupported version
-        parameters: vec![],
-    };
-    write(
-        &setup.params_path,
-        rmp_serde::to_vec(&bad_versioned_params).unwrap(),
-    )
-    .unwrap();
+    // Create params with an unsupported version using the wire format:
+    // [MAGIC: 4 bytes][VERSION: 4 bytes big-endian u32][PAYLOAD: msgpack]
+    let mut bad_params = Vec::new();
+    bad_params.extend_from_slice(&PARAMETERS_MAGIC);
+    bad_params.extend_from_slice(&999u32.to_be_bytes());
+    // Empty array payload
+    bad_params.extend_from_slice(&rmp_serde::to_vec::<Vec<()>>(&vec![]).unwrap());
+
+    write(&setup.params_path, &bad_params).unwrap();
 
     let output = Command::new(env!("CARGO_BIN_EXE_program_runner"))
         .arg("--elf")
@@ -239,7 +238,72 @@ fn test_params_version_mismatch() {
 
     let err_msg = String::from_utf8_lossy(&output.stderr);
     assert!(
-        err_msg.contains("unsupported parameters version 999"),
+        err_msg.contains("unsupported version 999"),
         "Expected version mismatch error, got: {err_msg}"
+    );
+}
+
+#[test]
+fn test_params_invalid_magic() {
+    let setup = setup::setup();
+
+    // Create params with invalid magic bytes
+    let mut bad_params = Vec::new();
+    bad_params.extend_from_slice(b"BAAD"); // Wrong magic
+    bad_params.extend_from_slice(&1u32.to_be_bytes());
+    bad_params.extend_from_slice(&rmp_serde::to_vec::<Vec<()>>(&vec![]).unwrap());
+
+    write(&setup.params_path, &bad_params).unwrap();
+
+    let output = Command::new(env!("CARGO_BIN_EXE_program_runner"))
+        .arg("--elf")
+        .arg(setup::test_programs_elf())
+        .arg("--func")
+        .arg("inc")
+        .arg("--key")
+        .arg(setup.compute_key_path)
+        .arg("--params")
+        .arg(&setup.params_path)
+        .arg("--output")
+        .arg(setup.test_dir.path().join("result.bin"))
+        .output()
+        .unwrap();
+
+    assert!(!output.status.success());
+
+    let err_msg = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        err_msg.contains("invalid magic bytes"),
+        "Expected invalid magic error, got: {err_msg}"
+    );
+}
+
+#[test]
+fn test_params_truncated_header() {
+    let setup = setup::setup();
+
+    // Create params that are too short (only 3 bytes)
+    write(&setup.params_path, b"SPF").unwrap();
+
+    let output = Command::new(env!("CARGO_BIN_EXE_program_runner"))
+        .arg("--elf")
+        .arg(setup::test_programs_elf())
+        .arg("--func")
+        .arg("inc")
+        .arg("--key")
+        .arg(setup.compute_key_path)
+        .arg("--params")
+        .arg(&setup.params_path)
+        .arg("--output")
+        .arg(setup.test_dir.path().join("result.bin"))
+        .output()
+        .unwrap();
+
+    assert!(!output.status.success());
+
+    let err_msg = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        err_msg.contains("data too short"),
+        "Expected truncated header error, got: {err_msg}"
     );
 }
