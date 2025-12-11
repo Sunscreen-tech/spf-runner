@@ -146,7 +146,9 @@ fn peek_version(bytes: &[u8], expected_magic: &[u8; 4]) -> Result<u32, PeekError
     if &bytes[0..4] != expected_magic {
         return Err(PeekError::InvalidMagic);
     }
-    let version_bytes: [u8; 4] = bytes[4..8].try_into().map_err(|_| PeekError::InvalidVersion)?;
+    let version_bytes: [u8; 4] = bytes[4..8]
+        .try_into()
+        .map_err(|_| PeekError::InvalidVersion)?;
     Ok(u32::from_be_bytes(version_bytes))
 }
 
