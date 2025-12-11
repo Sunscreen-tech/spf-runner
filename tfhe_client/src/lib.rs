@@ -13,7 +13,8 @@ mod validation;
 pub use ciphertext::PyCiphertext;
 pub use keys::{PyComputeKey, PyKeySet, PyPublicKey, PySecretKey};
 pub use parameters::{
-    deserialize_outputs, deserialize_parameters, serialize_parameters, PyWireCiphertext,
+    deserialize_output, deserialize_parameters, get_output_version, get_parameters_version,
+    py_peek_output_version, py_peek_parameters_version, serialize_parameters, PyWireCiphertext,
     PyWireCiphertextArray, PyWireOutputCiphertextArray, PyWirePlaintext, PyWirePlaintextArray,
 };
 
@@ -41,7 +42,15 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(deserialize_parameters, m)?)?;
 
     // Output deserialization function
-    m.add_function(wrap_pyfunction!(deserialize_outputs, m)?)?;
+    m.add_function(wrap_pyfunction!(deserialize_output, m)?)?;
+
+    // Version peeking functions
+    m.add_function(wrap_pyfunction!(py_peek_parameters_version, m)?)?;
+    m.add_function(wrap_pyfunction!(py_peek_output_version, m)?)?;
+
+    // Version getters
+    m.add_function(wrap_pyfunction!(get_parameters_version, m)?)?;
+    m.add_function(wrap_pyfunction!(get_output_version, m)?)?;
 
     Ok(())
 }

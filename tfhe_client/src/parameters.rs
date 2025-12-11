@@ -3,8 +3,9 @@
 use std::num::NonZeroU32;
 
 use program_runner::{
-    BitWidth, L1GlweCiphertextWithBitWidth, ParameterType, VersionedOutput, VersionedParameters,
-    OUTPUT_VERSION, PARAMETERS_VERSION,
+    deserialize_outputs, deserialize_parameters as deserialize_params_rust, peek_output_version,
+    peek_parameters_version, serialize_parameters as serialize_params_rust, BitWidth,
+    L1GlweCiphertextWithBitWidth, ParameterType, OUTPUT_VERSION, PARAMETERS_VERSION,
 };
 use pyo3::prelude::*;
 use pyo3::types::{PyBytes, PyList};
@@ -58,12 +59,24 @@ pub struct PyWireCiphertextArray {
 impl PyWireCiphertextArray {
     #[new]
     fn new(data: Vec<Vec<u8>>) -> PyResult<Self> {
-        let bit_width = data
+        let first_ct: L1GlweCiphertextWithBitWidth = data
             .first()
-            .map(|first| from_msgpack::<L1GlweCiphertextWithBitWidth>(first))
+            .map(|first| from_msgpack(first))
             .transpose()?
-            .map(|ct| ct.bit_width.into())
             .ok_or_else(|| value_error("ciphertext array cannot be empty"))?;
+        let bit_width: u16 = first_ct.bit_width.into();
+
+        // Validate all elements have the same bit width
+        for (i, bytes) in data.iter().enumerate().skip(1) {
+            let ct: L1GlweCiphertextWithBitWidth = from_msgpack(bytes)?;
+            let ct_bit_width: u16 = ct.bit_width.into();
+            if ct_bit_width != bit_width {
+                return Err(value_error(format!(
+                    "inconsistent bit widths: element 0 has {bit_width}, element {i} has {ct_bit_width}"
+                )));
+            }
+        }
+
         Ok(Self { data, bit_width })
     }
 
@@ -209,8 +222,7 @@ pub fn serialize_parameters(py: Python<'_>, entries: &Bound<'_, PyList>) -> PyRe
         }
     }
 
-    let versioned = VersionedParameters::new(params);
-    let bytes = to_msgpack(&versioned)?;
+    let bytes = serialize_params_rust(&params).map_err(|e| value_error(e.to_string()))?;
     Ok(PyBytes::new(py, &bytes).into())
 }
 
@@ -220,16 +232,7 @@ pub fn serialize_parameters(py: Python<'_>, entries: &Bound<'_, PyList>) -> PyRe
 /// WirePlaintext, or WirePlaintextArray objects.
 #[pyfunction]
 pub fn deserialize_parameters(py: Python<'_>, bytes: &[u8]) -> PyResult<Py<PyList>> {
-    let versioned: VersionedParameters = from_msgpack(bytes)?;
-
-    if versioned.version != PARAMETERS_VERSION {
-        return Err(value_error(format!(
-            "unsupported parameters version {}, expected {}",
-            versioned.version, PARAMETERS_VERSION
-        )));
-    }
-
-    let params = versioned.parameters;
+    let params = deserialize_params_rust(bytes).map_err(|e| value_error(e.to_string()))?;
     let result = PyList::empty(py);
 
     for param in params {
@@ -289,11 +292,10 @@ pub fn deserialize_parameters(py: Python<'_>, bytes: &[u8]) -> PyResult<Py<PyLis
 
 /// Deserialize versioned output bytes to a list of Ciphertext objects.
 ///
-/// Accepts MessagePack bytes containing a VersionedOutput struct and returns
-/// a list of PyCiphertext objects.
+/// Accepts MessagePack bytes and returns a list of PyCiphertext objects.
 ///
 /// Args:
-///     bytes: MessagePack-serialized VersionedOutput
+///     bytes: MessagePack-serialized output with magic bytes and version header
 ///
 /// Returns:
 ///     List of Ciphertext objects
@@ -301,21 +303,62 @@ pub fn deserialize_parameters(py: Python<'_>, bytes: &[u8]) -> PyResult<Py<PyLis
 /// Raises:
 ///     ValueError: If version is not supported or deserialization fails
 #[pyfunction]
-pub fn deserialize_outputs(py: Python<'_>, bytes: &[u8]) -> PyResult<Py<PyList>> {
-    let versioned: VersionedOutput = from_msgpack(bytes)?;
-
-    if versioned.version != OUTPUT_VERSION {
-        return Err(value_error(format!(
-            "unsupported output version {}, expected {}",
-            versioned.version, OUTPUT_VERSION
-        )));
-    }
+pub fn deserialize_output(py: Python<'_>, bytes: &[u8]) -> PyResult<Py<PyList>> {
+    let outputs = deserialize_outputs(bytes).map_err(|e| value_error(e.to_string()))?;
 
     let result = PyList::empty(py);
-    for ct_with_bw in versioned.outputs {
+    for ct_with_bw in outputs {
         let ciphertext = PyCiphertext::from_wire_format(ct_with_bw);
         result.append(ciphertext.into_pyobject(py)?)?;
     }
 
     Ok(result.into())
+}
+
+/// Peek the version number from parameter bytes without full deserialization.
+///
+/// This is useful for checking compatibility before attempting to deserialize.
+///
+/// Args:
+///     bytes: Parameter file bytes
+///
+/// Returns:
+///     Version number as u32
+///
+/// Raises:
+///     ValueError: If bytes are too short or have invalid format
+#[pyfunction]
+#[pyo3(name = "peek_parameters_version")]
+pub fn py_peek_parameters_version(bytes: &[u8]) -> PyResult<u32> {
+    peek_parameters_version(bytes).map_err(|e| value_error(e.to_string()))
+}
+
+/// Peek the version number from output bytes without full deserialization.
+///
+/// This is useful for checking compatibility before attempting to deserialize.
+///
+/// Args:
+///     bytes: Output file bytes
+///
+/// Returns:
+///     Version number as u32
+///
+/// Raises:
+///     ValueError: If bytes are too short or have invalid format
+#[pyfunction]
+#[pyo3(name = "peek_output_version")]
+pub fn py_peek_output_version(bytes: &[u8]) -> PyResult<u32> {
+    peek_output_version(bytes).map_err(|e| value_error(e.to_string()))
+}
+
+/// Get the current parameters version.
+#[pyfunction]
+pub fn get_parameters_version() -> u32 {
+    PARAMETERS_VERSION
+}
+
+/// Get the current output version.
+#[pyfunction]
+pub fn get_output_version() -> u32 {
+    OUTPUT_VERSION
 }

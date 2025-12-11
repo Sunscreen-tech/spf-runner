@@ -54,6 +54,10 @@ from tfhe_client._native import (
     KeySet,
     PublicKey,
     SecretKey,
+    get_output_version,
+    get_parameters_version,
+    peek_output_version,
+    peek_parameters_version,
 )
 from tfhe_client.builder import ParameterBuilder
 from tfhe_client.outputs import read_outputs
@@ -84,6 +88,10 @@ __all__ = [
     "PlaintextArrayParam",
     "PlaintextParam",
     # Functions
+    "get_output_version",
+    "get_parameters_version",
+    "peek_output_version",
+    "peek_parameters_version",
     "read_outputs",
 ]
 
