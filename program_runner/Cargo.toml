@@ -12,6 +12,7 @@ parasol_cpu = { workspace = true }
 parasol_runtime = { workspace = true }
 rmp-serde = { workspace = true }
 serde = { workspace = true }
+thiserror = { workspace = true }
 
 [dev-dependencies]
 rand = { workspace = true }
