@@ -47,84 +47,37 @@ pub const OUTPUT_MAGIC: [u8; 4] = *b"SPFO";
 pub const HEADER_SIZE: usize = 8;
 
 /// Error type for peeking version from serialized data.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum PeekError {
     /// Data is too short to contain a valid header.
+    #[error("data too short to contain valid header")]
     TooShort,
     /// Magic bytes do not match expected value.
+    #[error("invalid magic bytes")]
     InvalidMagic,
     /// Version field is corrupt or unreadable.
+    #[error("version field is corrupt or unreadable")]
     InvalidVersion,
 }
 
-impl std::fmt::Display for PeekError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            PeekError::TooShort => write!(f, "data too short to contain valid header"),
-            PeekError::InvalidMagic => write!(f, "invalid magic bytes"),
-            PeekError::InvalidVersion => write!(f, "version field is corrupt or unreadable"),
-        }
-    }
-}
-
-impl std::error::Error for PeekError {}
-
 /// Error type for deserialization operations.
-#[derive(Debug)]
+#[derive(Debug, thiserror::Error)]
 pub enum DeserializeError {
     /// Error peeking the version header.
-    Peek(PeekError),
+    #[error("header validation failed: {0}")]
+    Peek(#[from] PeekError),
     /// Version is not supported.
+    #[error("unsupported version {got}, expected {expected}")]
     UnsupportedVersion { got: u32, expected: u32 },
     /// Error deserializing the payload.
-    Payload(rmp_serde::decode::Error),
-}
-
-impl std::fmt::Display for DeserializeError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            // PeekError is a leaf error with no source, so include its message
-            DeserializeError::Peek(e) => write!(f, "{e}"),
-            DeserializeError::UnsupportedVersion { got, expected } => {
-                write!(f, "unsupported version {got}, expected {expected}")
-            }
-            // rmp_serde errors have their own chain; don't duplicate
-            DeserializeError::Payload(_) => write!(f, "payload deserialization failed"),
-        }
-    }
-}
-
-impl std::error::Error for DeserializeError {
-    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        match self {
-            DeserializeError::Peek(e) => Some(e),
-            DeserializeError::UnsupportedVersion { .. } => None,
-            DeserializeError::Payload(e) => Some(e),
-        }
-    }
-}
-
-impl From<PeekError> for DeserializeError {
-    fn from(e: PeekError) -> Self {
-        DeserializeError::Peek(e)
-    }
+    #[error("payload deserialization failed")]
+    Payload(#[source] rmp_serde::decode::Error),
 }
 
 /// Error type for serialization operations.
-#[derive(Debug)]
-pub struct SerializeError(rmp_serde::encode::Error);
-
-impl std::fmt::Display for SerializeError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "payload serialization failed")
-    }
-}
-
-impl std::error::Error for SerializeError {
-    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        Some(&self.0)
-    }
-}
+#[derive(Debug, thiserror::Error)]
+#[error("payload serialization failed")]
+pub struct SerializeError(#[source] rmp_serde::encode::Error);
 
 /// Peek the version number from parameter bytes without full deserialization.
 ///
@@ -230,16 +183,9 @@ pub enum BitWidth {
 }
 
 /// Error type for invalid bit width conversions.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
+#[error("bit_width must be 8, 16, 32, or 64, got {0}")]
 pub struct InvalidBitWidth(pub u32);
-
-impl std::fmt::Display for InvalidBitWidth {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "bit_width must be 8, 16, 32, or 64, got {}", self.0)
-    }
-}
-
-impl std::error::Error for InvalidBitWidth {}
 
 impl BitWidth {
     /// Get the byte width (bit_width / 8).
