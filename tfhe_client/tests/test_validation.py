@@ -1,5 +1,7 @@
 """Tests for validation and error handling."""
 
+from typing import cast
+
 import pytest
 from conftest import BIT_WIDTH_ERROR_MSG, INVALID_BIT_WIDTHS
 from tfhe_client import Ciphertext, ParameterBuilder, Parameters, SecretKey
@@ -199,7 +201,8 @@ class TestVersionMismatch:
 
         # Create output bytes with unsupported version using wire format:
         # [SPFO: 4 bytes][version: 4 bytes big-endian u32][payload: msgpack]
-        bad_bytes = b"SPFO" + _encode_version(999) + msgpack.packb([])
+        payload = cast(bytes, msgpack.packb([]))
+        bad_bytes = b"SPFO" + _encode_version(999) + payload
 
         with pytest.raises(ValueError, match="unsupported version 999"):
             read_outputs(bad_bytes)
@@ -209,7 +212,8 @@ class TestVersionMismatch:
         import msgpack
         from tfhe_client import read_outputs
 
-        bad_bytes = b"BAAD" + _encode_version(1) + msgpack.packb([])
+        payload = cast(bytes, msgpack.packb([]))
+        bad_bytes = b"BAAD" + _encode_version(1) + payload
 
         with pytest.raises(ValueError, match="invalid magic bytes"):
             read_outputs(bad_bytes)
@@ -230,7 +234,8 @@ class TestVersionMismatch:
 
         # Create parameter bytes with unsupported version using wire format:
         # [SPFP: 4 bytes][version: 4 bytes big-endian u32][payload: msgpack]
-        bad_bytes = b"SPFP" + _encode_version(999) + msgpack.packb([])
+        payload = cast(bytes, msgpack.packb([]))
+        bad_bytes = b"SPFP" + _encode_version(999) + payload
 
         with pytest.raises(ValueError, match="unsupported version 999"):
             Parameters.from_bytes(bad_bytes)
@@ -239,7 +244,8 @@ class TestVersionMismatch:
         """Test that invalid magic bytes raise ValueError."""
         import msgpack
 
-        bad_bytes = b"BAAD" + _encode_version(1) + msgpack.packb([])
+        payload = cast(bytes, msgpack.packb([]))
+        bad_bytes = b"BAAD" + _encode_version(1) + payload
 
         with pytest.raises(ValueError, match="invalid magic bytes"):
             Parameters.from_bytes(bad_bytes)
