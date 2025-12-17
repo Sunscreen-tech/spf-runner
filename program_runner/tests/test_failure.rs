@@ -173,7 +173,7 @@ fn test_params_file_not_present() {
 
     let err_msg = String::from_utf8_lossy(&output.stderr);
     assert!(
-        err_msg.contains("failed to read parameters file")
+        err_msg.contains("failed to open parameters file")
             && err_msg.contains(not_present_params.to_str().unwrap())
     );
 }
@@ -201,7 +201,7 @@ fn test_params_file_not_valid() {
 
     let err_msg = String::from_utf8_lossy(&output.stderr);
     assert!(
-        err_msg.contains("failed to deserialize parameters from")
+        err_msg.contains("invalid parameters header")
             && err_msg.contains(setup.params_path.to_str().unwrap()),
     );
 }
@@ -303,7 +303,7 @@ fn test_params_truncated_header() {
 
     let err_msg = String::from_utf8_lossy(&output.stderr);
     assert!(
-        err_msg.contains("data too short"),
+        err_msg.contains("failed to read header from parameters file"),
         "Expected truncated header error, got: {err_msg}"
     );
 }

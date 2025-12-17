@@ -3,9 +3,9 @@
 use std::num::NonZeroU32;
 
 use program_runner::{
-    deserialize_outputs, deserialize_parameters as deserialize_params_rust, peek_output_version,
-    peek_parameters_version, serialize_parameters as serialize_params_rust, BitWidth,
-    L1GlweCiphertextWithBitWidth, ParameterType, OUTPUT_VERSION, PARAMETERS_VERSION,
+    deserialize_outputs, deserialize_parameters as deserialize_parameters_rust,
+    peek_output_version, peek_parameters_version, serialize_parameters as serialize_params_rust,
+    BitWidth, L1GlweCiphertextWithBitWidth, ParameterType, OUTPUT_VERSION, PARAMETERS_VERSION,
 };
 use pyo3::prelude::*;
 use pyo3::types::{PyBytes, PyList};
@@ -232,7 +232,7 @@ pub fn serialize_parameters(py: Python<'_>, entries: &Bound<'_, PyList>) -> PyRe
 /// WirePlaintext, or WirePlaintextArray objects.
 #[pyfunction]
 pub fn deserialize_parameters(py: Python<'_>, bytes: &[u8]) -> PyResult<Py<PyList>> {
-    let params = deserialize_params_rust(bytes).map_err(|e| value_error(e.to_string()))?;
+    let params = deserialize_parameters_rust(bytes).map_err(|e| value_error(e.to_string()))?;
     let result = PyList::empty(py);
 
     for param in params {
