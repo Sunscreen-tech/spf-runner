@@ -26,10 +26,17 @@
 //! 2. Update serialization/deserialization logic
 //! 3. Clients must upgrade to match server version
 
-use std::num::NonZeroU32;
+mod error;
+mod types;
+mod wire;
 
-use parasol_runtime::L1GlweCiphertext;
-use serde::{Deserialize, Serialize};
+pub use error::{DeserializeError, PeekError, SerializeError};
+use parasol_runtime::{DEFAULT_128, Params};
+pub use types::{BitWidth, InvalidBitWidth, L1GlweCiphertextWithBitWidth, ParameterType};
+pub use wire::{
+    deserialize_outputs, deserialize_parameters, deserialize_parameters_payload,
+    peek_output_version, peek_parameters_version, serialize_outputs, serialize_parameters,
+};
 
 /// Current protocol version for parameters.
 pub const PARAMETERS_VERSION: u32 = 1;
@@ -46,256 +53,21 @@ pub const OUTPUT_MAGIC: [u8; 4] = *b"SPFO";
 /// Header size: 4 bytes magic + 4 bytes version.
 pub const HEADER_SIZE: usize = 8;
 
-/// Error type for peeking version from serialized data.
-#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
-pub enum PeekError {
-    /// Data is too short to contain a valid header.
-    #[error("data too short to contain valid header")]
-    TooShort,
-    /// Magic bytes do not match expected value.
-    #[error("invalid magic bytes")]
-    InvalidMagic,
-    /// Version field is corrupt or unreadable.
-    #[error("version field is corrupt or unreadable")]
-    InvalidVersion,
-}
+// Gas cost related constants
+pub const BYTE_WIDTH_MULTIPLIER_COST: u32 = 320;
 
-/// Error type for deserialization operations.
-#[derive(Debug, thiserror::Error)]
-pub enum DeserializeError {
-    /// Error peeking the version header.
-    #[error("header validation failed: {0}")]
-    Peek(#[from] PeekError),
-    /// Version is not supported.
-    #[error("unsupported version {got}, expected {expected}")]
-    UnsupportedVersion { got: u32, expected: u32 },
-    /// Error deserializing the payload.
-    #[error("payload deserialization failed")]
-    Payload(#[source] rmp_serde::decode::Error),
-}
+/// Exponential base for ciphertext unpacking gas calculation.
+/// Used as: base^log2(byte_width)
+pub const CIPHERTEXT_UNPACK_EXPONENTIAL_BASE_COST: u32 = 6;
 
-/// Error type for serialization operations.
-#[derive(Debug, thiserror::Error)]
-#[error("payload serialization failed")]
-pub struct SerializeError(#[source] rmp_serde::encode::Error);
+/// Normalizer divisor for exponential component in unpacking gas calculation.
+pub const CIPHERTEXT_UNPACK_NORMALIZER_COST: f64 = 600.0;
 
-/// Peek the version number from parameter bytes without full deserialization.
-///
-/// This reads only the header (magic bytes + version) to allow fast-fail
-/// for unsupported versions without deserializing the entire payload.
-pub fn peek_parameters_version(bytes: &[u8]) -> Result<u32, PeekError> {
-    peek_version(bytes, &PARAMETERS_MAGIC)
-}
+/// Final multiplier applied to compute total unpacking gas cost.
+pub const CIPHERTEXT_UNPACK_MULTIPLIER_COST: f64 = 56280.0;
 
-/// Peek the version number from output bytes without full deserialization.
-pub fn peek_output_version(bytes: &[u8]) -> Result<u32, PeekError> {
-    peek_version(bytes, &OUTPUT_MAGIC)
-}
+/// Base unit offset added before final multiplication in unpacking gas calculation.
+pub const CIPHERTEXT_UNPACK_BASE_UNIT_COST: f64 = 1.0;
 
-fn peek_version(bytes: &[u8], expected_magic: &[u8; 4]) -> Result<u32, PeekError> {
-    if bytes.len() < HEADER_SIZE {
-        return Err(PeekError::TooShort);
-    }
-    if &bytes[0..4] != expected_magic {
-        return Err(PeekError::InvalidMagic);
-    }
-    let version_bytes: [u8; 4] = bytes[4..8]
-        .try_into()
-        .map_err(|_| PeekError::InvalidVersion)?;
-    Ok(u32::from_be_bytes(version_bytes))
-}
-
-/// Serialize parameters with magic bytes and version header.
-pub fn serialize_parameters(params: &[ParameterType]) -> Result<Vec<u8>, SerializeError> {
-    serialize_with_header(&PARAMETERS_MAGIC, PARAMETERS_VERSION, params)
-}
-
-/// Serialize outputs with magic bytes and version header.
-pub fn serialize_outputs(
-    outputs: &[L1GlweCiphertextWithBitWidth],
-) -> Result<Vec<u8>, SerializeError> {
-    serialize_with_header(&OUTPUT_MAGIC, OUTPUT_VERSION, outputs)
-}
-
-fn serialize_with_header<T: Serialize + ?Sized>(
-    magic: &[u8; 4],
-    version: u32,
-    payload: &T,
-) -> Result<Vec<u8>, SerializeError> {
-    let mut buf = Vec::with_capacity(HEADER_SIZE);
-    buf.extend_from_slice(magic);
-    buf.extend_from_slice(&version.to_be_bytes());
-    let payload_bytes = rmp_serde::to_vec(payload).map_err(SerializeError)?;
-    buf.extend_from_slice(&payload_bytes);
-    Ok(buf)
-}
-
-/// Deserialize parameters, validating magic bytes and version.
-pub fn deserialize_parameters(bytes: &[u8]) -> Result<Vec<ParameterType>, DeserializeError> {
-    deserialize_with_header(bytes, &PARAMETERS_MAGIC, PARAMETERS_VERSION)
-}
-
-/// Deserialize outputs, validating magic bytes and version.
-pub fn deserialize_outputs(
-    bytes: &[u8],
-) -> Result<Vec<L1GlweCiphertextWithBitWidth>, DeserializeError> {
-    deserialize_with_header(bytes, &OUTPUT_MAGIC, OUTPUT_VERSION)
-}
-
-fn deserialize_with_header<T: serde::de::DeserializeOwned>(
-    bytes: &[u8],
-    expected_magic: &[u8; 4],
-    expected_version: u32,
-) -> Result<T, DeserializeError> {
-    if bytes.len() < HEADER_SIZE {
-        return Err(PeekError::TooShort.into());
-    }
-    if &bytes[0..4] != expected_magic {
-        return Err(PeekError::InvalidMagic.into());
-    }
-
-    let version_bytes: [u8; 4] = bytes[4..8]
-        .try_into()
-        .map_err(|_| PeekError::InvalidVersion)?;
-    let version = u32::from_be_bytes(version_bytes);
-
-    if version != expected_version {
-        return Err(DeserializeError::UnsupportedVersion {
-            got: version,
-            expected: expected_version,
-        });
-    }
-
-    rmp_serde::from_slice(&bytes[HEADER_SIZE..]).map_err(DeserializeError::Payload)
-}
-
-/// Type-safe bit width representation for FHE operations.
-///
-/// This enum ensures only valid bit widths can be used, eliminating the need
-/// for runtime validation in internal functions.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[repr(u8)]
-pub enum BitWidth {
-    U8 = 8,
-    U16 = 16,
-    U32 = 32,
-    U64 = 64,
-}
-
-/// Error type for invalid bit width conversions.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
-#[error("bit_width must be 8, 16, 32, or 64, got {0}")]
-pub struct InvalidBitWidth(pub u32);
-
-impl BitWidth {
-    /// Get the byte width (bit_width / 8).
-    pub fn byte_width(self) -> u32 {
-        u32::from(self) / 8
-    }
-
-    /// Get the maximum unsigned value for this bit width.
-    pub fn max_unsigned(self) -> u64 {
-        match self {
-            BitWidth::U8 => u8::MAX as u64,
-            BitWidth::U16 => u16::MAX as u64,
-            BitWidth::U32 => u32::MAX as u64,
-            BitWidth::U64 => u64::MAX,
-        }
-    }
-
-    /// Convert a signed value to its unsigned representation using two's complement.
-    pub fn signed_to_unsigned(self, value: i64) -> u64 {
-        match self {
-            BitWidth::U8 => (value as i8) as u8 as u64,
-            BitWidth::U16 => (value as i16) as u16 as u64,
-            BitWidth::U32 => (value as i32) as u32 as u64,
-            BitWidth::U64 => value as u64,
-        }
-    }
-
-    /// Convert an unsigned value to its signed representation using two's complement.
-    pub fn unsigned_to_signed(self, value: u64) -> i64 {
-        match self {
-            BitWidth::U8 => (value as u8) as i8 as i64,
-            BitWidth::U16 => (value as u16) as i16 as i64,
-            BitWidth::U32 => (value as u32) as i32 as i64,
-            BitWidth::U64 => value as i64,
-        }
-    }
-}
-
-impl TryFrom<u16> for BitWidth {
-    type Error = InvalidBitWidth;
-
-    fn try_from(value: u16) -> Result<Self, Self::Error> {
-        BitWidth::try_from(value as u32)
-    }
-}
-
-impl TryFrom<u32> for BitWidth {
-    type Error = InvalidBitWidth;
-
-    fn try_from(value: u32) -> Result<Self, Self::Error> {
-        match value {
-            8 => Ok(BitWidth::U8),
-            16 => Ok(BitWidth::U16),
-            32 => Ok(BitWidth::U32),
-            64 => Ok(BitWidth::U64),
-            _ => Err(InvalidBitWidth(value)),
-        }
-    }
-}
-
-impl From<BitWidth> for u8 {
-    fn from(bw: BitWidth) -> u8 {
-        bw as u8
-    }
-}
-
-impl From<BitWidth> for u16 {
-    fn from(bw: BitWidth) -> u16 {
-        bw as u16
-    }
-}
-
-impl From<BitWidth> for u32 {
-    fn from(bw: BitWidth) -> u32 {
-        bw as u32
-    }
-}
-
-impl From<BitWidth> for usize {
-    fn from(bw: BitWidth) -> usize {
-        bw as usize
-    }
-}
-
-#[derive(Clone, Serialize, Deserialize)]
-pub enum ParameterType {
-    /// Single ciphertext parameter
-    Ciphertext {
-        content: L1GlweCiphertextWithBitWidth,
-    },
-    /// Array of ciphertext parameters
-    CiphertextArray {
-        contents: Vec<L1GlweCiphertextWithBitWidth>,
-    },
-    /// Output ciphertext array (result)
-    OutputCiphertextArray {
-        bit_width: BitWidth,
-        size: NonZeroU32,
-    },
-    /// Single plaintext parameter
-    Plaintext { bit_width: BitWidth, value: u64 },
-    /// Array of plaintext parameters
-    PlaintextArray {
-        bit_width: BitWidth,
-        values: Vec<u64>,
-    },
-}
-
-#[derive(Clone, Serialize, Deserialize)]
-pub struct L1GlweCiphertextWithBitWidth {
-    pub bit_width: BitWidth,
-    pub ciphertext: L1GlweCiphertext,
-}
+/// Default FHE parameters (128-bit security).
+pub static PARAMS: Params = DEFAULT_128;

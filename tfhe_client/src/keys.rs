@@ -5,12 +5,10 @@ use pyo3::prelude::*;
 use pyo3::types::PyAnyMethods;
 use std::sync::Arc;
 
+use program_runner::PARAMS;
+
 use crate::ciphertext::PyCiphertext;
 use crate::validation::{to_signed, BitWidth, BitWidthExt, PyArcWrapper};
-
-// We use Encryption::default() for all keys in this module for now. We may want
-// to expose parameter customization in the future, but at the moment we are
-// only supporting the default parameter set.
 
 /// Implement PyArcWrapper trait for a PyO3 wrapper type.
 macro_rules! impl_py_arc_wrapper {
@@ -23,7 +21,7 @@ macro_rules! impl_py_arc_wrapper {
             fn from_arc(inner: Arc<$inner_type>) -> Self {
                 Self {
                     inner,
-                    encryption: Encryption::default(),
+                    encryption: Encryption::new(&program_runner::PARAMS),
                 }
             }
         }
@@ -48,8 +46,8 @@ impl PySecretKey {
     #[staticmethod]
     fn generate() -> Self {
         Self {
-            inner: Arc::new(SecretKey::generate_with_default_params()),
-            encryption: Encryption::default(),
+            inner: Arc::new(SecretKey::generate(&PARAMS)),
+            encryption: Encryption::new(&PARAMS),
         }
     }
 
@@ -106,8 +104,8 @@ impl PyPublicKey {
     #[staticmethod]
     fn from_secret_key(secret_key: &PySecretKey) -> Self {
         Self {
-            inner: Arc::new(PublicKey::generate_with_default_params(&secret_key.inner)),
-            encryption: Encryption::default(),
+            inner: Arc::new(PublicKey::generate(&PARAMS, &secret_key.inner)),
+            encryption: Encryption::new(&PARAMS),
         }
     }
 
@@ -186,7 +184,7 @@ impl PyComputeKey {
     #[staticmethod]
     fn from_secret_key(secret_key: &PySecretKey) -> Self {
         Self {
-            inner: Arc::new(ComputeKey::generate_with_default_params(&secret_key.inner)),
+            inner: Arc::new(ComputeKey::generate(&secret_key.inner, &PARAMS)),
         }
     }
 
