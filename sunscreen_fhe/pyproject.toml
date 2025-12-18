@@ -1,6 +1,6 @@
 [project]
 name = "sunscreen-fhe"
-version = "0.1.0"
+version = "0.1.1"
 description = "Python client for FHE program runner"
 authors = [{name = "Sunscreen", email = "hello@sunscreen.tech"}]
 readme = "README.md"
