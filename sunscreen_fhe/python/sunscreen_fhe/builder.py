@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from tfhe_client._native import Ciphertext, PublicKey
-from tfhe_client.parameters import (
+from sunscreen_fhe._native import Ciphertext, PublicKey
+from sunscreen_fhe.parameters import (
     BuilderEntry,
     CiphertextArrayParam,
     CiphertextParam,
@@ -14,7 +14,7 @@ from tfhe_client.parameters import (
     PlaintextArrayParam,
     PlaintextParam,
 )
-from tfhe_client.validation import (
+from sunscreen_fhe.validation import (
     convert_to_unsigned,
     validate_bit_width,
     validate_value_range,

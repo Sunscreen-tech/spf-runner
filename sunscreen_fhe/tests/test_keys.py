@@ -1,7 +1,7 @@
 """Tests for key generation and serialization."""
 
 from conftest import assert_serialization_roundtrip
-from tfhe_client import ComputeKey, KeySet, PublicKey, SecretKey
+from sunscreen_fhe import ComputeKey, KeySet, PublicKey, SecretKey
 
 
 class TestSecretKey:

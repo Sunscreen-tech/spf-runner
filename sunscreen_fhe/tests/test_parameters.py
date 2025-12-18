@@ -2,7 +2,7 @@
 
 import pytest
 from conftest import SIGNED_ARRAYS_BY_WIDTH, UNSIGNED_ARRAYS_BY_WIDTH
-from tfhe_client import (
+from sunscreen_fhe import (
     CiphertextArrayParam,
     CiphertextParam,
     OutputParam,

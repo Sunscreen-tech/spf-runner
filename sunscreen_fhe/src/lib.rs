@@ -18,7 +18,7 @@ pub use parameters::{
     PyWireCiphertextArray, PyWireOutputCiphertextArray, PyWirePlaintext, PyWirePlaintextArray,
 };
 
-/// Python module for tfhe_client native bindings.
+/// Python module for sunscreen_fhe native bindings.
 #[pymodule]
 fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     // Key classes

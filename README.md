@@ -58,11 +58,11 @@ uv run ruff format python/ tests/
 
 ## Components
 
-| Crate            | Description                                                           |
-| ---------------- | --------------------------------------------------------------------- |
-| `elf_validator`  | Validates ELF binaries for the Parasol CPU                            |
-| `program_runner` | Executes FHE programs with encrypted inputs                           |
-| `tfhe_client`    | Python library for key generation, encryption, and parameter building |
+| Crate              | Description                                                           |
+| ------------------ | --------------------------------------------------------------------- |
+| `elf_validator`    | Validates ELF binaries for the Parasol CPU                            |
+| `program_runner`   | Executes FHE programs with encrypted inputs                           |
+| `sunscreen_fhe`    | Python library for key generation, encryption, and parameter building |
 
 ## Usage
 
@@ -94,7 +94,7 @@ $LLVM_DIR/clang -O2 -target parasol -o add add.c
 ```python
 import subprocess
 from pathlib import Path
-from tfhe_client import KeySet, ParameterBuilder, read_outputs
+from sunscreen_fhe import KeySet, ParameterBuilder, read_outputs
 
 # Generate keys
 keys = KeySet.generate()

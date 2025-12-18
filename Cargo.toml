@@ -2,9 +2,9 @@
 members = [
     "elf_validator",
     "program_runner",
-    "tfhe_client",
+    "sunscreen_fhe",
 ]
-# Exclude tfhe_client from default builds - it's a PyO3 extension that must be
+# Exclude sunscreen_fhe from default builds - it's a PyO3 extension that must be
 # built with maturin, not cargo. Running `cargo build` on it fails because the
 # linker can't resolve Python symbols.
 default-members = [

@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Iterator
 from dataclasses import dataclass
 
-from tfhe_client._native import (
+from sunscreen_fhe._native import (
     Ciphertext,
     PublicKey,
     WireCiphertext,

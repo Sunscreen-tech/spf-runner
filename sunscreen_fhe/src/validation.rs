@@ -18,7 +18,7 @@ pub fn value_error(msg: impl std::fmt::Display) -> PyErr {
     PyErr::new::<pyo3::exceptions::PyValueError, _>(msg.to_string())
 }
 
-// Re-export BitWidth from program_runner for use throughout tfhe_client.
+// Re-export BitWidth from program_runner for use throughout sunscreen_fhe.
 // This ensures serialization compatibility between the two crates.
 pub use program_runner::BitWidth;
 

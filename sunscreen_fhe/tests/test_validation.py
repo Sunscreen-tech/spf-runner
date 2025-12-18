@@ -4,7 +4,7 @@ from typing import cast
 
 import pytest
 from conftest import BIT_WIDTH_ERROR_MSG, INVALID_BIT_WIDTHS
-from tfhe_client import Ciphertext, ParameterBuilder, Parameters, SecretKey
+from sunscreen_fhe import Ciphertext, ParameterBuilder, Parameters, SecretKey
 
 
 class TestInvalidBitWidth:
@@ -166,7 +166,7 @@ class TestVersioning:
 
     def test_peek_parameters_version_success(self, keyset):
         """Verify peek_parameters_version returns correct version."""
-        from tfhe_client import ParameterBuilder, get_parameters_version, peek_parameters_version
+        from sunscreen_fhe import ParameterBuilder, get_parameters_version, peek_parameters_version
 
         params = ParameterBuilder().plaintext(42, 8, signed=False).build()
         data = params.to_bytes()
@@ -176,7 +176,7 @@ class TestVersioning:
 
     def test_get_version_constants(self):
         """Verify get_*_version functions return positive integers."""
-        from tfhe_client import get_output_version, get_parameters_version
+        from sunscreen_fhe import get_output_version, get_parameters_version
 
         assert get_parameters_version() >= 1
         assert get_output_version() >= 1
@@ -197,7 +197,7 @@ class TestVersionMismatch:
     def test_output_version_mismatch(self):
         """Test that invalid output version raises ValueError."""
         import msgpack
-        from tfhe_client import read_outputs
+        from sunscreen_fhe import read_outputs
 
         # Create output bytes with unsupported version using wire format:
         # [SPFO: 4 bytes][version: 4 bytes big-endian u32][payload: msgpack]
@@ -210,7 +210,7 @@ class TestVersionMismatch:
     def test_output_invalid_magic(self):
         """Test that invalid magic bytes raise ValueError."""
         import msgpack
-        from tfhe_client import read_outputs
+        from sunscreen_fhe import read_outputs
 
         payload = cast(bytes, msgpack.packb([]))
         bad_bytes = b"BAAD" + _encode_version(1) + payload
@@ -220,7 +220,7 @@ class TestVersionMismatch:
 
     def test_output_truncated_header(self):
         """Test that truncated header raises ValueError."""
-        from tfhe_client import read_outputs
+        from sunscreen_fhe import read_outputs
 
         # Only 3 bytes - too short for magic + version
         with pytest.raises(ValueError, match="data too short"):

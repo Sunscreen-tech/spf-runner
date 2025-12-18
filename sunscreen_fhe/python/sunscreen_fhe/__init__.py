@@ -5,10 +5,10 @@ fully homomorphic encryption (FHE) operations.
 
 Example::
 
-    from pathlib import Path
     import subprocess
     import tempfile
-    from tfhe_client import KeySet, ParameterBuilder, read_outputs
+    from pathlib import Path
+    from sunscreen_fhe import KeySet, ParameterBuilder, read_outputs
 
     # Generate keys
     keys = KeySet.generate()
@@ -16,39 +16,37 @@ Example::
     # Build parameters: encrypt two 8-bit values, declare one 8-bit output
     params = (
         ParameterBuilder()
-        .encrypt(100, 8, signed=False)
-        .encrypt(50, 8, signed=False)
-        .output(8, 1)
+        .encrypt(100, bit_width=8, signed=False)
+        .encrypt(50, bit_width=8, signed=False)
+        .output(bit_width=8, size=1)
         .build(keys.public_key)
     )
 
-    # Save inputs for program_runner
+    # Save compute key for program_runner
     with tempfile.TemporaryDirectory() as job_dir:
         job_path = Path(job_dir)
-        job_path.joinpath("computation.key").write_bytes(
-            keys.compute_key.to_bytes()
-        )
-        job_path.joinpath("params").write_bytes(params.to_bytes())
+        compute_key_path = job_path / "compute.key"
+        compute_key_path.write_bytes(keys.compute_key.to_bytes())
 
-        # Run the FHE program
+        # Run the FHE program (params via stdin, output via stdout)
         result = subprocess.run(
             [
                 "program_runner",
                 "-e", "program.elf",
                 "-f", "add_u8",
-                "-k", str(job_path / "computation.key"),
-                "-p", str(job_path / "params"),
+                "-k", str(compute_key_path),
             ],
+            input=params.to_bytes(),
             capture_output=True,
             check=True,
         )
 
         # Decrypt outputs
         outputs = read_outputs(result.stdout)
-        result_value = keys.decrypt(outputs[0], signed=False)
+        result_value = keys.decrypt(outputs[0], signed=False)  # 150
 """
 
-from tfhe_client._native import (
+from sunscreen_fhe._native import (
     Ciphertext,
     ComputeKey,
     KeySet,
@@ -59,9 +57,9 @@ from tfhe_client._native import (
     peek_output_version,
     peek_parameters_version,
 )
-from tfhe_client.builder import ParameterBuilder
-from tfhe_client.outputs import read_outputs
-from tfhe_client.parameters import (
+from sunscreen_fhe.builder import ParameterBuilder
+from sunscreen_fhe.outputs import read_outputs
+from sunscreen_fhe.parameters import (
     CiphertextArrayParam,
     CiphertextParam,
     OutputParam,

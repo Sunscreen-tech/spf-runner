@@ -1,4 +1,4 @@
-// FHE test programs for tfhe_client E2E tests.
+// FHE test programs for sunscreen_fhe E2E tests.
 // Compile with: clang -target parasol -O2 test_programs.c -o test_programs
 
 #include <parasol.h>
