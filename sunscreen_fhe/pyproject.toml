@@ -1,21 +1,34 @@
 [project]
-name = "tfhe-client"
+name = "sunscreen-fhe"
 version = "0.1.0"
 description = "Python client for FHE program runner"
 authors = [{name = "Sunscreen", email = "hello@sunscreen.tech"}]
 readme = "README.md"
 requires-python = ">=3.10"
 license = "MIT"
+keywords = ["fhe", "homomorphic-encryption", "cryptography", "parasol", "tfhe", "privacy"]
+homepage = "https://sunscreen.tech"
+repository = "https://github.com/Sunscreen-tech/spf-runner"
+documentation = "https://docs.sunscreen.tech"
 classifiers = [
+    "Development Status :: 3 - Alpha",
     "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: Implementation :: CPython",
     "Programming Language :: Rust",
     "License :: OSI Approved :: MIT License",
     "Operating System :: MacOS",
     "Operating System :: POSIX :: Linux",
+    "Operating System :: Microsoft :: Windows",
+    "Topic :: Security :: Cryptography",
 ]
 # Zero runtime dependencies
 dependencies = []
+
+[project.urls]
+"Bug Tracker" = "https://github.com/Sunscreen-tech/spf-runner/issues"
 
 # Dev dependencies are managed via [dependency-groups] for uv
 
@@ -26,7 +39,7 @@ build-backend = "maturin"
 [tool.maturin]
 features = ["pyo3/extension-module"]
 python-source = "python"
-module-name = "tfhe_client._native"
+module-name = "sunscreen_fhe._native"
 strip = true
 
 [tool.uv]
@@ -73,5 +86,5 @@ quote-style = "double"
 [tool.pyright]
 pythonVersion = "3.10"
 typeCheckingMode = "standard"
-include = ["python/tfhe_client", "tests"]
+include = ["python/sunscreen_fhe", "tests"]
 exclude = [".venv", "**/__pycache__"]

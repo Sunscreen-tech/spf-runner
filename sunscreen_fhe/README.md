@@ -1,17 +1,37 @@
-# tfhe-client
+# sunscreen-fhe
 
-Python client for FHE program runner.
+Python client library for Fully Homomorphic Encryption (FHE) operations using [Sunscreen](https://sunscreen.tech)'s Parasol technology.
+
+## Overview
+
+Sunscreen-fhe provides Python bindings for running FHE programs compiled with the Parasol compiler. FHE allows computations on encrypted data without decryption, enabling privacy-preserving applications.
+
+### Features
+
+- Key generation for FHE operations (secret, public, and compute keys)
+- Encryption and decryption of integers (8, 16, 32, 64-bit, signed and unsigned)
+- Parameter building with method chaining API
+- Support for array operations
+- Mixed plaintext/ciphertext computations
+- Zero runtime dependencies
+- Type-safe Python API with full type stubs
+
+### Links
+
+- **Documentation**: [docs.sunscreen.tech](https://docs.sunscreen.tech)
+- **Repository**: [github.com/Sunscreen-tech/spf-runner](https://github.com/Sunscreen-tech/spf-runner)
+- **Homepage**: [sunscreen.tech](https://sunscreen.tech)
 
 ## Installation
 
 ```bash
-pip install tfhe-client
+pip install sunscreen-fhe
 ```
 
 ## Usage
 
 ```python
-from tfhe_client import KeySet, ParameterBuilder, read_outputs
+from sunscreen_fhe import KeySet, ParameterBuilder, read_outputs
 
 # Generate keys
 keys = KeySet.generate()
@@ -77,7 +97,7 @@ Using uv (recommended):
 ```bash
 # Install uv if needed: https://docs.astral.sh/uv/getting-started/installation/
 
-# From tfhe_client directory:
+# From sunscreen_fhe directory:
 uv sync
 uv run maturin develop --release
 uv run pytest tests/ -v

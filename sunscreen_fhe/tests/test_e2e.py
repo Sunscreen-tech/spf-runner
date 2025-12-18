@@ -8,7 +8,7 @@ from conftest import (
     build_mixed_op_params,
     encrypt_array,
 )
-from tfhe_client import KeySet, ParameterBuilder
+from sunscreen_fhe import KeySet, ParameterBuilder
 
 
 @pytest.mark.usefixtures("require_binaries")
@@ -92,7 +92,7 @@ class TestKeySerializationWithProgramRunner:
             f.write(keyset.compute_key.to_bytes())
 
         # Load keys back
-        from tfhe_client import ComputeKey, PublicKey, SecretKey
+        from sunscreen_fhe import ComputeKey, PublicKey, SecretKey
 
         with open(key_dir / "secret.key", "rb") as f:
             secret_key = SecretKey.from_bytes(f.read())

@@ -1,4 +1,4 @@
-"""Shared pytest fixtures and helper functions for tfhe_client tests."""
+"""Shared pytest fixtures and helper functions for sunscreen_fhe tests."""
 
 from __future__ import annotations
 
@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Protocol
 
 import pytest
-from tfhe_client import (
+from sunscreen_fhe import (
     Ciphertext,
     ComputeKey,
     KeySet,

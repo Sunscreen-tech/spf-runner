@@ -8,7 +8,7 @@ Example::
     from pathlib import Path
     import subprocess
     import tempfile
-    from tfhe_client import KeySet, ParameterBuilder, read_outputs
+    from sunscreen_fhe import KeySet, ParameterBuilder, read_outputs
 
     # Generate keys
     keys = KeySet.generate()
@@ -48,7 +48,7 @@ Example::
         result_value = keys.decrypt(outputs[0], signed=False)
 """
 
-from tfhe_client._native import (
+from sunscreen_fhe._native import (
     Ciphertext,
     ComputeKey,
     KeySet,
@@ -59,9 +59,9 @@ from tfhe_client._native import (
     peek_output_version,
     peek_parameters_version,
 )
-from tfhe_client.builder import ParameterBuilder
-from tfhe_client.outputs import read_outputs
-from tfhe_client.parameters import (
+from sunscreen_fhe.builder import ParameterBuilder
+from sunscreen_fhe.outputs import read_outputs
+from sunscreen_fhe.parameters import (
     CiphertextArrayParam,
     CiphertextParam,
     OutputParam,

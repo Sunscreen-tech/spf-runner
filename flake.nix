@@ -71,7 +71,7 @@
             echo ""
             echo "Python development:"
             echo "  uv sync              - Set up Python environment"
-            echo "  maturin develop      - Build and install tfhe_client locally"
+            echo "  maturin develop      - Build and install sunscreen_fhe locally"
             echo ""
             echo "FHE program compilation:"
             echo "  make -C fhe-programs/src  - Compile FHE programs"

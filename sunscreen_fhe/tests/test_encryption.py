@@ -2,7 +2,7 @@
 
 import pytest
 from conftest import SIGNED_VALUES_BY_WIDTH, UNSIGNED_VALUES_BY_WIDTH
-from tfhe_client import Ciphertext
+from sunscreen_fhe import Ciphertext
 
 
 class TestCiphertextLowLevel:

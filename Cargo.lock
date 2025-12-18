@@ -1926,6 +1926,20 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "13c2bddecc57b384dee18652358fb23172facb8a2c51ccc10d74c157bdea3292"
 
 [[package]]
+name = "sunscreen_fhe"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "parasol_runtime",
+ "program_runner",
+ "pyo3",
+ "rmp-serde",
+ "serde",
+ "tempfile",
+ "thiserror",
+]
+
+[[package]]
 name = "sunscreen_math"
 version = "0.10.0"
 source = "git+https://github.com/Sunscreen-tech/spf.git#3d2877f92924c072d7d78bfa95c0922efa10ce6b"
@@ -2005,20 +2019,6 @@ dependencies = [
  "once_cell",
  "rustix",
  "windows-sys 0.61.2",
-]
-
-[[package]]
-name = "tfhe_client"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "parasol_runtime",
- "program_runner",
- "pyo3",
- "rmp-serde",
- "serde",
- "tempfile",
- "thiserror",
 ]
 
 [[package]]

@@ -1,12 +1,12 @@
 [package]
-name = "tfhe_client"
+name = "sunscreen_fhe"
 version = "0.1.0"
 edition = "2021"
 description = "Python client for FHE program runner"
 license = "MIT"
 
 [lib]
-name = "tfhe_client"
+name = "sunscreen_fhe"
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]

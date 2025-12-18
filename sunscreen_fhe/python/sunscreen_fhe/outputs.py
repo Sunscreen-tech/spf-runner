@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from tfhe_client._native import Ciphertext
-from tfhe_client._native import deserialize_output as _deserialize_output
+from sunscreen_fhe._native import Ciphertext
+from sunscreen_fhe._native import deserialize_output as _deserialize_output
 
 
 def read_outputs(data: bytes) -> list[Ciphertext]:

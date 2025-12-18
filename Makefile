@@ -14,7 +14,7 @@ clean:
 # Run Python client tests (builds all dependencies first)
 test-python: fhe-programs
 	cargo build --release
-	cd tfhe_client && uv sync && uv run maturin develop --release && uv run pyright python/ tests/ && uv run pytest tests/ -v
+	cd sunscreen_fhe && uv sync && uv run maturin develop --release && uv run pyright python/ tests/ && uv run pytest tests/ -v
 
 # Help target
 help:
