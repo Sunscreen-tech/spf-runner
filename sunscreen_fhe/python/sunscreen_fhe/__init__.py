@@ -93,4 +93,11 @@ __all__ = [
     "read_outputs",
 ]
 
-__version__ = "0.1.0"
+# Read version from package metadata (set in pyproject.toml)
+try:
+    from importlib.metadata import version
+
+    __version__ = version("sunscreen-fhe")
+except Exception:
+    # Fallback for development/editable installs
+    __version__ = "0.0.0+dev"
