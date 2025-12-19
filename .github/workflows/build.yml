@@ -9,6 +9,8 @@ on:
     types: [checks_requested]
   workflow_dispatch:
 
+permissions: {}
+
 env:
   CARGO_TERM_COLOR: always
   SUNSCREEN_LLVM_VERSION: v2025.11.24
@@ -50,109 +52,12 @@ jobs:
           retention-days: 7
 
   build-binaries:
-    name: Build binaries (${{ matrix.platform-name }})
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - os: ubuntu-latest
-            target: x86_64-unknown-linux-musl
-            platform-name: linux-x86_64
-          - os: ubuntu-latest
-            target: aarch64-unknown-linux-musl
-            platform-name: linux-aarch64
-          - os: macos-latest
-            target: aarch64-apple-darwin
-            platform-name: macos-aarch64
-          - os: windows-latest
-            target: x86_64-pc-windows-msvc
-            platform-name: windows-x86_64
-
-    steps:
-      - uses: actions/checkout@v6
-
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: ${{ matrix.target }}
-
-      - name: Install zig
-        if: contains(matrix.target, 'musl')
-        uses: mlugg/setup-zig@v1
-        with:
-          version: 0.13.0
-
-      - name: Install cargo-zigbuild
-        if: contains(matrix.target, 'musl')
-        uses: taiki-e/install-action@cargo-zigbuild
-
-      - name: Build (musl via zigbuild)
-        if: contains(matrix.target, 'musl')
-        run: cargo zigbuild --release --target ${{ matrix.target }}
-
-      - name: Build (native)
-        if: ${{ !contains(matrix.target, 'musl') }}
-        run: cargo build --release --target ${{ matrix.target }}
-
-      - name: Upload binaries (Unix)
-        if: runner.os != 'Windows'
-        uses: actions/upload-artifact@v4
-        with:
-          name: binaries-${{ matrix.platform-name }}
-          path: |
-            target/${{ matrix.target }}/release/program_runner
-            target/${{ matrix.target }}/release/elf_validator
-          retention-days: 7
-
-      - name: Upload binaries (Windows)
-        if: runner.os == 'Windows'
-        uses: actions/upload-artifact@v4
-        with:
-          name: binaries-${{ matrix.platform-name }}
-          path: |
-            target/${{ matrix.target }}/release/program_runner.exe
-            target/${{ matrix.target }}/release/elf_validator.exe
-          retention-days: 7
+    uses: ./.github/workflows/_build-binaries.yml
+    with:
+      package: false
 
   build-wheels:
-    name: Build wheels (${{ matrix.platform-name }})
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - os: ubuntu-latest
-            target: x86_64
-            platform-name: linux-x86_64
-          - os: ubuntu-latest
-            target: aarch64
-            platform-name: linux-aarch64
-          - os: macos-latest
-            target: aarch64
-            platform-name: macos-aarch64
-          - os: windows-latest
-            target: x86_64
-            platform-name: windows-x86_64
-    steps:
-      - uses: actions/checkout@v6
-
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.10'
-
-      - name: Build wheels
-        uses: PyO3/maturin-action@v1
-        with:
-          working-directory: sunscreen_fhe
-          target: ${{ matrix.target }}
-          args: --release --out dist
-          manylinux: auto
-
-      - name: Upload wheels
-        uses: actions/upload-artifact@v4
-        with:
-          name: wheels-${{ matrix.platform-name }}
-          path: sunscreen_fhe/dist
+    uses: ./.github/workflows/_build-wheels.yml
 
   integration-test:
     name: Integration test (${{ matrix.platform-name }})

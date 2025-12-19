@@ -11,6 +11,8 @@ on:
         required: true
         type: string
 
+permissions: {}
+
 env:
   CARGO_TERM_COLOR: always
 
@@ -89,122 +91,19 @@ jobs:
           echo "pypi_environment=$PYPI_ENV" >> $GITHUB_OUTPUT
           echo "pypi_repository_url=$PYPI_URL" >> $GITHUB_OUTPUT
 
-  build-wheels:
-    name: Build wheels (${{ matrix.platform-name }})
-    needs: verify-version
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - os: ubuntu-latest
-            target: x86_64
-            platform-name: linux-x86_64
-          - os: ubuntu-latest
-            target: aarch64
-            platform-name: linux-aarch64
-          - os: macos-latest
-            target: aarch64
-            platform-name: macos-aarch64
-          - os: windows-latest
-            target: x86_64
-            platform-name: windows-x86_64
-
-    steps:
-      - uses: actions/checkout@v6
-        with:
-          ref: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.tag || github.ref }}
-
-      - name: Build wheels
-        uses: PyO3/maturin-action@v1
-        with:
-          working-directory: sunscreen_fhe
-          target: ${{ matrix.target }}
-          args: --release --out dist --find-interpreter
-          manylinux: auto
-
-      - name: Upload wheels
-        uses: actions/upload-artifact@v4
-        with:
-          name: wheels-${{ matrix.platform-name }}
-          path: sunscreen_fhe/dist
-          retention-days: 7
-
   build-binaries:
-    name: Build binaries (${{ matrix.platform-name }})
     needs: verify-version
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - os: ubuntu-latest
-            target: x86_64-unknown-linux-musl
-            platform-name: linux-x86_64
-          - os: ubuntu-latest
-            target: aarch64-unknown-linux-musl
-            platform-name: linux-aarch64
-          - os: macos-latest
-            target: aarch64-apple-darwin
-            platform-name: macos-aarch64
-          - os: windows-latest
-            target: x86_64-pc-windows-msvc
-            platform-name: windows-x86_64
+    uses: ./.github/workflows/_build-binaries.yml
+    with:
+      ref: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.tag || github.ref }}
+      package: true
 
-    steps:
-      - uses: actions/checkout@v6
-        with:
-          ref: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.tag || github.ref }}
-
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: ${{ matrix.target }}
-
-      - name: Install zig
-        if: contains(matrix.target, 'musl')
-        uses: mlugg/setup-zig@v1
-        with:
-          version: 0.13.0
-
-      - name: Install cargo-zigbuild
-        if: contains(matrix.target, 'musl')
-        uses: taiki-e/install-action@cargo-zigbuild
-
-      - name: Build (musl via zigbuild)
-        if: contains(matrix.target, 'musl')
-        run: cargo zigbuild --release --target ${{ matrix.target }}
-
-      - name: Build (native)
-        if: ${{ !contains(matrix.target, 'musl') }}
-        run: cargo build --release --target ${{ matrix.target }}
-
-      - name: Package binaries (Unix)
-        if: runner.os != 'Windows'
-        run: |
-          mkdir -p artifacts
-          cp target/${{ matrix.target }}/release/program_runner artifacts/program_runner-${{ matrix.platform-name }}
-          cp target/${{ matrix.target }}/release/elf_validator artifacts/elf_validator-${{ matrix.platform-name }}
-          cd artifacts
-          tar -czvf spf-runner-${{ matrix.platform-name }}.tar.gz \
-            program_runner-${{ matrix.platform-name }} \
-            elf_validator-${{ matrix.platform-name }}
-
-      - name: Package binaries (Windows)
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: |
-          New-Item -ItemType Directory -Force -Path artifacts
-          Copy-Item "target/${{ matrix.target }}/release/program_runner.exe" "artifacts/program_runner-${{ matrix.platform-name }}.exe"
-          Copy-Item "target/${{ matrix.target }}/release/elf_validator.exe" "artifacts/elf_validator-${{ matrix.platform-name }}.exe"
-          Set-Location artifacts
-          Compress-Archive -Path "program_runner-${{ matrix.platform-name }}.exe", "elf_validator-${{ matrix.platform-name }}.exe" -DestinationPath "spf-runner-${{ matrix.platform-name }}.zip"
-
-      - name: Upload binary artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: binaries-${{ matrix.platform-name }}
-          path: artifacts/
-          retention-days: 7
+  build-wheels:
+    needs: verify-version
+    uses: ./.github/workflows/_build-wheels.yml
+    with:
+      ref: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.tag || github.ref }}
+      maturin-extra-args: '--find-interpreter'
 
   publish-pypi:
     name: Publish to ${{ needs.verify-version.outputs.pypi_environment }}
