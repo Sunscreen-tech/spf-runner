@@ -1,4 +1,4 @@
-name: Rust CI
+name: Python CI
 
 on:
   push:
@@ -10,37 +10,69 @@ on:
 env:
   CARGO_TERM_COLOR: always
   SUNSCREEN_LLVM_VERSION: v2025.11.24
-  # SHA256 from sunscreen-llvm.nix
   SUNSCREEN_LLVM_SHA256: aS0WmsZKAHQ/DT2G0IFVcSZbz3RINWc3AC1OdMX6hMw=
 
 jobs:
-  rust-fmt:
-    name: Format
+  python-fmt:
+    name: Python format
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: sunscreen_fhe
     steps:
       - uses: actions/checkout@v6
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          components: rustfmt
-      - run: cargo fmt --all -- --check
+      - uses: astral-sh/setup-uv@v7
+      - run: uv sync
+      - run: uv run ruff format --check .
+
+  python-lint:
+    name: Python lint
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: sunscreen_fhe
+    steps:
+      - uses: actions/checkout@v6
+      - uses: astral-sh/setup-uv@v7
+      - run: uv sync
+      - run: uv run ruff check .
+
+  python-typecheck:
+    name: Python type check
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: sunscreen_fhe
+    steps:
+      - uses: actions/checkout@v6
+      - uses: astral-sh/setup-uv@v7
+      - run: uv sync
+      - run: uv run pyright python/ tests/
 
   rust-clippy:
-    name: Clippy
+    name: Rust clippy (sunscreen_fhe)
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: sunscreen_fhe
     steps:
       - uses: actions/checkout@v6
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy
       - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: sunscreen_fhe -> sunscreen_fhe/target
       - run: cargo clippy --release --all-targets -- --deny warnings
 
-  rust-test:
-    name: Test
+  python-test:
+    name: Python tests
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
+
       - uses: dtolnay/rust-toolchain@stable
+
       - uses: Swatinem/rust-cache@v2
 
       - name: Cache Sunscreen LLVM
@@ -63,4 +95,14 @@ jobs:
       - name: Compile FHE programs
         run: LLVM_DIR=$PWD/parasol-compiler/bin make
 
-      - run: cargo test --release -- --skip test_restart_server_s3_store
+      - name: Build program_runner
+        run: cargo build --release -p program_runner
+
+      - uses: astral-sh/setup-uv@v7
+
+      - name: Build extension and run tests
+        working-directory: sunscreen_fhe
+        run: |
+          uv sync
+          uv run maturin develop --release
+          uv run pytest tests/ -v
