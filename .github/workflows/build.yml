@@ -1,12 +1,9 @@
 name: Build
 
 # Cross-platform builds and integration tests
-# Only runs on push to main, merge queue, or manual dispatch (not PRs)
-# TODO: Remove pull_request trigger after testing
+# Only runs on push to main, merge queue, or manual dispatch
 on:
   push:
-    branches: [main]
-  pull_request:
     branches: [main]
   merge_group:
     types: [checks_requested]
@@ -118,7 +115,7 @@ jobs:
           retention-days: 7
 
   build-wheels:
-    name: Build wheels (${{ matrix.os }} ${{ matrix.target }})
+    name: Build wheels (${{ matrix.platform-name }})
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -126,12 +123,16 @@ jobs:
         include:
           - os: ubuntu-latest
             target: x86_64
+            platform-name: linux-x86_64
           - os: ubuntu-latest
             target: aarch64
+            platform-name: linux-aarch64
           - os: macos-latest
             target: aarch64
+            platform-name: macos-aarch64
           - os: windows-latest
             target: x86_64
+            platform-name: windows-x86_64
     steps:
       - uses: actions/checkout@v6
 
@@ -150,7 +151,7 @@ jobs:
       - name: Upload wheels
         uses: actions/upload-artifact@v4
         with:
-          name: wheels-${{ matrix.os }}-${{ matrix.target }}
+          name: wheels-${{ matrix.platform-name }}
           path: sunscreen_fhe/dist
 
   integration-test:
@@ -164,13 +165,10 @@ jobs:
         include:
           - os: ubuntu-latest
             platform-name: linux-x86_64
-            wheel-artifact: wheels-ubuntu-latest-x86_64
           - os: macos-latest
             platform-name: macos-aarch64
-            wheel-artifact: wheels-macos-latest-aarch64
           - os: windows-latest
             platform-name: windows-x86_64
-            wheel-artifact: wheels-windows-latest-x86_64
 
     steps:
       - uses: actions/checkout@v6
@@ -194,7 +192,7 @@ jobs:
       - name: Download wheel
         uses: actions/download-artifact@v4
         with:
-          name: ${{ matrix.wheel-artifact }}
+          name: wheels-${{ matrix.platform-name }}
           path: wheel/
 
       - name: Make binary executable (Unix)
