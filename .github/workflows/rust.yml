@@ -93,6 +93,10 @@ jobs:
         with:
           targets: ${{ matrix.target }}
 
+      - name: Install zig
+        if: contains(matrix.target, 'musl')
+        uses: mlugg/setup-zig@v1
+
       - name: Install cargo-zigbuild
         if: contains(matrix.target, 'musl')
         uses: taiki-e/install-action@cargo-zigbuild
