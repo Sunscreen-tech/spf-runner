@@ -1,0 +1,11 @@
+[build.env]
+passthrough = ["RUST_BACKTRACE", "CARGO_TERM_COLOR"]
+
+# Pinned to main branch as of 2024-12-18 for reproducibility
+# v0.2.5 is 3 years old; main has critical updates for modern Rust
+# To update: check ghcr.io/cross-rs for new digests
+[target.x86_64-unknown-linux-musl]
+image = "ghcr.io/cross-rs/x86_64-unknown-linux-musl@sha256:a4edd7bba0306544cdcff3e37734567d0a6d5b494e64e5a177c750a549771e9c"
+
+[target.aarch64-unknown-linux-musl]
+image = "ghcr.io/cross-rs/aarch64-unknown-linux-musl@sha256:252968a29c8a0b5805216e14f893223d9fecdc538f2051bd6528f53d88088776"
