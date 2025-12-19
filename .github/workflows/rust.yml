@@ -70,10 +70,10 @@ jobs:
       - run: cargo test --release -- --skip test_restart_server_s3_store
 
   # Cross-platform build verification (no tests, just compile check)
-  # PRs: only linux-x86_64 for fast feedback
-  # Main/merge/dispatch: all platforms
+  # Only runs on push to main, merge queue, or manual dispatch (not PRs)
   build-check:
     name: Build (${{ matrix.platform-name }})
+    if: github.event_name != 'pull_request'
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -82,7 +82,6 @@ jobs:
           - os: ubuntu-latest
             target: x86_64-unknown-linux-musl
             platform-name: linux-x86_64
-            run-on-pr: true
           - os: ubuntu-latest
             target: aarch64-unknown-linux-musl
             platform-name: linux-aarch64
@@ -95,27 +94,25 @@ jobs:
 
     steps:
       - uses: actions/checkout@v6
-        if: github.event_name != 'pull_request' || matrix.run-on-pr
 
       - uses: dtolnay/rust-toolchain@stable
-        if: github.event_name != 'pull_request' || matrix.run-on-pr
         with:
           targets: ${{ matrix.target }}
 
       - name: Install zig
-        if: (github.event_name != 'pull_request' || matrix.run-on-pr) && contains(matrix.target, 'musl')
+        if: contains(matrix.target, 'musl')
         uses: mlugg/setup-zig@v1
         with:
           version: 0.13.0
 
       - name: Install cargo-zigbuild
-        if: (github.event_name != 'pull_request' || matrix.run-on-pr) && contains(matrix.target, 'musl')
+        if: contains(matrix.target, 'musl')
         uses: taiki-e/install-action@cargo-zigbuild
 
       - name: Build (musl via zigbuild)
-        if: (github.event_name != 'pull_request' || matrix.run-on-pr) && contains(matrix.target, 'musl')
+        if: contains(matrix.target, 'musl')
         run: cargo zigbuild --release --target ${{ matrix.target }}
 
       - name: Build (native)
-        if: (github.event_name != 'pull_request' || matrix.run-on-pr) && !contains(matrix.target, 'musl')
+        if: ${{ !contains(matrix.target, 'musl') }}
         run: cargo build --release --target ${{ matrix.target }}
