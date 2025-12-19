@@ -93,13 +93,13 @@ jobs:
         with:
           targets: ${{ matrix.target }}
 
-      - name: Install cross
+      - name: Install cargo-zigbuild
         if: contains(matrix.target, 'musl')
-        uses: taiki-e/install-action@cross
+        uses: taiki-e/install-action@cargo-zigbuild
 
-      - name: Build (musl via cross)
+      - name: Build (musl via zigbuild)
         if: contains(matrix.target, 'musl')
-        run: cross build --release --target ${{ matrix.target }}
+        run: cargo zigbuild --release --target ${{ matrix.target }}
 
       - name: Build (native)
         if: ${{ !contains(matrix.target, 'musl') }}

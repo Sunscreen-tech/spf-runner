@@ -25,6 +25,7 @@
 
         rustToolchain = pkgs.rust-bin.stable.latest.default.override {
           extensions = [ "rust-src" "rust-analyzer" ];
+          targets = [ "x86_64-unknown-linux-musl" "aarch64-unknown-linux-musl" ];
         };
 
         craneLib = (crane.mkLib pkgs).overrideToolchain rustToolchain;
@@ -52,6 +53,8 @@
             uv
             maturin
             cargo-watch
+            cargo-zigbuild
+            zig
             ruff
             pyright
           ];
