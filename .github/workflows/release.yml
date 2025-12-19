@@ -1,4 +1,4 @@
-name: PyPI Release
+name: Release
 
 on:
   push:
@@ -11,6 +11,8 @@ on:
         required: true
         type: string
 
+permissions: {}
+
 env:
   CARGO_TERM_COLOR: always
 
@@ -20,26 +22,33 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.parse.outputs.version }}
+      tag: ${{ steps.parse.outputs.tag }}
       is_prerelease: ${{ steps.parse.outputs.is_prerelease }}
       pypi_environment: ${{ steps.parse.outputs.pypi_environment }}
       pypi_repository_url: ${{ steps.parse.outputs.pypi_repository_url }}
 
     steps:
       - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.tag || github.ref }}
 
       - name: Parse tag and verify version
         id: parse
+        env:
+          INPUT_TAG: ${{ github.event.inputs.tag }}
+          EVENT_NAME: ${{ github.event_name }}
         run: |
           # Determine the tag to use (from push or workflow_dispatch)
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            TAG="${{ github.event.inputs.tag }}"
+          # Using env vars to avoid command injection from user input
+          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+            TAG="$INPUT_TAG"
           else
             TAG="${GITHUB_REF#refs/tags/}"
           fi
           echo "Git tag: $TAG"
 
-          # Validate tag format
-          if [[ ! "$TAG" =~ ^v?[0-9]+\.[0-9]+\.[0-9]+ ]]; then
+          # Validate tag format (anchored regex to prevent partial matches)
+          if [[ ! "$TAG" =~ ^v?[0-9]+\.[0-9]+\.[0-9]+(-.*)?$ ]]; then
             echo "::error::Invalid tag format: $TAG (expected vX.Y.Z or vX.Y.Z-suffix)"
             exit 1
           fi
@@ -76,51 +85,27 @@ jobs:
           fi
 
           # Set outputs
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
           echo "version=$TAG_VERSION" >> $GITHUB_OUTPUT
           echo "is_prerelease=$IS_PRERELEASE" >> $GITHUB_OUTPUT
           echo "pypi_environment=$PYPI_ENV" >> $GITHUB_OUTPUT
           echo "pypi_repository_url=$PYPI_URL" >> $GITHUB_OUTPUT
 
-  build-wheels:
-    name: Build wheels (${{ matrix.platform-name }})
+  build-binaries:
     needs: verify-version
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - os: ubuntu-latest
-            target: x86_64
-            platform-name: linux-x86_64
-          - os: ubuntu-latest
-            target: aarch64
-            platform-name: linux-aarch64
-          - os: macos-latest
-            target: aarch64
-            platform-name: macos-aarch64
-          - os: windows-latest
-            target: x64
-            platform-name: windows-x86_64
+    uses: ./.github/workflows/_build-binaries.yml
+    with:
+      ref: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.tag || github.ref }}
+      package: true
 
-    steps:
-      - uses: actions/checkout@v6
+  build-wheels:
+    needs: verify-version
+    uses: ./.github/workflows/_build-wheels.yml
+    with:
+      ref: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.tag || github.ref }}
+      maturin-extra-args: '--find-interpreter'
 
-      - name: Build wheels
-        uses: PyO3/maturin-action@v1
-        with:
-          working-directory: sunscreen_fhe
-          target: ${{ matrix.target }}
-          args: --release --out dist --find-interpreter
-          manylinux: auto
-
-      - name: Upload wheels
-        uses: actions/upload-artifact@v4
-        with:
-          name: wheels-${{ matrix.platform-name }}
-          path: sunscreen_fhe/dist
-          retention-days: 7
-
-  publish:
+  publish-pypi:
     name: Publish to ${{ needs.verify-version.outputs.pypi_environment }}
     needs: [verify-version, build-wheels]
     runs-on: ubuntu-latest
@@ -143,11 +128,71 @@ jobs:
       - name: List distribution files
         run: ls -lh dist/
 
-      - name: Publish to PyPI
+      - name: Publish to PyPI (production)
+        if: needs.verify-version.outputs.is_prerelease == 'false'
         uses: PyO3/maturin-action@v1
         with:
           command: upload
           args: --skip-existing dist/*
         env:
-          MATURIN_REPOSITORY_URL: ${{ needs.verify-version.outputs.pypi_repository_url }}
-          MATURIN_PYPI_TOKEN: ${{ needs.verify-version.outputs.is_prerelease == 'true' && secrets.TEST_PYPI_API_TOKEN || secrets.PYPI_API_TOKEN }}
+          MATURIN_PYPI_TOKEN: ${{ secrets.PYPI_API_TOKEN }}
+
+      - name: Publish to TestPyPI (prerelease)
+        if: needs.verify-version.outputs.is_prerelease == 'true'
+        uses: PyO3/maturin-action@v1
+        with:
+          command: upload
+          args: --skip-existing dist/*
+        env:
+          MATURIN_REPOSITORY_URL: https://test.pypi.org/legacy/
+          MATURIN_PYPI_TOKEN: ${{ secrets.TEST_PYPI_API_TOKEN }}
+
+  publish-github-release:
+    name: Create GitHub Release
+    needs: [verify-version, build-wheels, build-binaries]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.verify-version.outputs.tag }}
+
+      - name: Download all wheel artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: wheels-*
+          path: wheels
+          merge-multiple: true
+
+      - name: Download all binary artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: binaries-*
+          path: binaries
+          merge-multiple: true
+
+      - name: List all artifacts
+        run: |
+          echo "=== Wheels ==="
+          ls -lh wheels/
+          echo "=== Binaries ==="
+          ls -lh binaries/
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.verify-version.outputs.tag }}
+          name: Release ${{ needs.verify-version.outputs.version }}
+          draft: false
+          prerelease: ${{ needs.verify-version.outputs.is_prerelease == 'true' }}
+          generate_release_notes: true
+          files: |
+            wheels/*.whl
+            binaries/spf-runner-*.tar.gz
+            binaries/spf-runner-*.zip
+            binaries/program_runner-*
+            binaries/elf_validator-*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

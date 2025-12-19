@@ -1,0 +1,123 @@
+name: Build Binaries
+
+# Reusable workflow for cross-platform binary builds
+on:
+  workflow_call:
+    inputs:
+      ref:
+        type: string
+        required: false
+        default: ''
+        description: 'Git ref to checkout (empty = default)'
+      package:
+        type: boolean
+        required: false
+        default: false
+        description: 'Create tar.gz/zip packages for release'
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build-binaries:
+    name: Build binaries (${{ matrix.platform-name }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-musl
+            platform-name: linux-x86_64
+          - os: ubuntu-latest
+            target: aarch64-unknown-linux-musl
+            platform-name: linux-aarch64
+          - os: macos-latest
+            target: aarch64-apple-darwin
+            platform-name: macos-aarch64
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            platform-name: windows-x86_64
+
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.ref || github.ref }}
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.target }}
+
+      - name: Install zig
+        if: contains(matrix.target, 'musl')
+        uses: mlugg/setup-zig@v1
+        with:
+          version: 0.13.0
+
+      - name: Install cargo-zigbuild
+        if: contains(matrix.target, 'musl')
+        uses: taiki-e/install-action@cargo-zigbuild
+
+      - name: Build (musl via zigbuild)
+        if: contains(matrix.target, 'musl')
+        run: cargo zigbuild --release --target ${{ matrix.target }}
+
+      - name: Build (native)
+        if: ${{ !contains(matrix.target, 'musl') }}
+        run: cargo build --release --target ${{ matrix.target }}
+
+      # Package step only runs for release (inputs.package == true)
+      - name: Package binaries (Unix)
+        if: inputs.package && runner.os != 'Windows'
+        run: |
+          mkdir -p artifacts
+          cp target/${{ matrix.target }}/release/program_runner artifacts/program_runner-${{ matrix.platform-name }}
+          cp target/${{ matrix.target }}/release/elf_validator artifacts/elf_validator-${{ matrix.platform-name }}
+          cd artifacts
+          tar -czvf spf-runner-${{ matrix.platform-name }}.tar.gz \
+            program_runner-${{ matrix.platform-name }} \
+            elf_validator-${{ matrix.platform-name }}
+
+      - name: Package binaries (Windows)
+        if: inputs.package && runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path artifacts
+          Copy-Item "target/${{ matrix.target }}/release/program_runner.exe" "artifacts/program_runner-${{ matrix.platform-name }}.exe"
+          Copy-Item "target/${{ matrix.target }}/release/elf_validator.exe" "artifacts/elf_validator-${{ matrix.platform-name }}.exe"
+          Set-Location artifacts
+          Compress-Archive -Path "program_runner-${{ matrix.platform-name }}.exe", "elf_validator-${{ matrix.platform-name }}.exe" -DestinationPath "spf-runner-${{ matrix.platform-name }}.zip"
+
+      # Upload raw binaries for build.yml integration tests
+      - name: Upload binaries (Unix)
+        if: ${{ !inputs.package && runner.os != 'Windows' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: binaries-${{ matrix.platform-name }}
+          path: |
+            target/${{ matrix.target }}/release/program_runner
+            target/${{ matrix.target }}/release/elf_validator
+          retention-days: 7
+
+      - name: Upload binaries (Windows)
+        if: ${{ !inputs.package && runner.os == 'Windows' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: binaries-${{ matrix.platform-name }}
+          path: |
+            target/${{ matrix.target }}/release/program_runner.exe
+            target/${{ matrix.target }}/release/elf_validator.exe
+          retention-days: 7
+
+      # Upload packaged binaries for release.yml
+      - name: Upload release artifacts
+        if: inputs.package
+        uses: actions/upload-artifact@v4
+        with:
+          name: binaries-${{ matrix.platform-name }}
+          path: artifacts/
+          retention-days: 7

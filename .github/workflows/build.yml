@@ -1,0 +1,122 @@
+name: Build
+
+# Cross-platform builds and integration tests
+# Only runs on push to main, merge queue, or manual dispatch
+on:
+  push:
+    branches: [main]
+  merge_group:
+    types: [checks_requested]
+  workflow_dispatch:
+
+permissions: {}
+
+env:
+  CARGO_TERM_COLOR: always
+  SUNSCREEN_LLVM_VERSION: v2025.11.24
+  SUNSCREEN_LLVM_SHA256: aS0WmsZKAHQ/DT2G0IFVcSZbz3RINWc3AC1OdMX6hMw=
+
+jobs:
+  # Compile FHE programs (needed for integration tests)
+  compile-fhe:
+    name: Compile FHE programs
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Cache Sunscreen LLVM
+        id: cache-llvm
+        uses: actions/cache@v4
+        with:
+          path: parasol-compiler
+          key: sunscreen-llvm-${{ env.SUNSCREEN_LLVM_VERSION }}-linux-x86-64
+
+      - name: Download Sunscreen LLVM
+        if: steps.cache-llvm.outputs.cache-hit != 'true'
+        run: |
+          mkdir parasol-compiler
+          curl -L -o parasol.tar.gz https://github.com/Sunscreen-tech/sunscreen-llvm/releases/download/${{ env.SUNSCREEN_LLVM_VERSION }}/parasol-compiler-linux-x86-64-2025-11-24.tar.gz
+          EXPECTED_HEX=$(echo "${{ env.SUNSCREEN_LLVM_SHA256 }}" | base64 -d | od -An -tx1 | tr -d ' \n')
+          echo "$EXPECTED_HEX  parasol.tar.gz" | sha256sum -c -
+          tar xzf parasol.tar.gz -C parasol-compiler
+          rm parasol.tar.gz
+
+      - name: Compile FHE programs
+        run: LLVM_DIR=$PWD/parasol-compiler/bin make
+
+      - name: Upload FHE programs
+        uses: actions/upload-artifact@v4
+        with:
+          name: fhe-programs
+          path: fhe-programs/compiled/
+          retention-days: 7
+
+  build-binaries:
+    uses: ./.github/workflows/_build-binaries.yml
+    with:
+      package: false
+
+  build-wheels:
+    uses: ./.github/workflows/_build-wheels.yml
+
+  integration-test:
+    name: Integration test (${{ matrix.platform-name }})
+    needs: [compile-fhe, build-binaries, build-wheels]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            platform-name: linux-x86_64
+          - os: macos-latest
+            platform-name: macos-aarch64
+          - os: windows-latest
+            platform-name: windows-x86_64
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Download FHE programs
+        uses: actions/download-artifact@v4
+        with:
+          name: fhe-programs
+          path: fhe-programs/compiled/
+
+      - name: Download binaries
+        uses: actions/download-artifact@v4
+        with:
+          name: binaries-${{ matrix.platform-name }}
+          path: binaries/
+
+      - name: Download wheel
+        uses: actions/download-artifact@v4
+        with:
+          name: wheels-${{ matrix.platform-name }}
+          path: wheel/
+
+      - name: Make binary executable (Unix)
+        if: runner.os != 'Windows'
+        run: chmod +x binaries/program_runner
+
+      - name: Install wheel (Unix)
+        if: runner.os != 'Windows'
+        run: pip install wheel/*.whl
+
+      - name: Install wheel (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: pip install (Get-ChildItem wheel/*.whl).FullName
+
+      - name: Run integration test (Unix)
+        if: runner.os != 'Windows'
+        run: python scripts/integration_test.py binaries/program_runner fhe-programs/compiled/test_programs
+
+      - name: Run integration test (Windows)
+        if: runner.os == 'Windows'
+        run: python scripts/integration_test.py binaries/program_runner.exe fhe-programs/compiled/test_programs
