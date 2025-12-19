@@ -88,7 +88,7 @@ def main() -> int:
         print(f"FAIL: expected 1 output, got {len(outputs)}")
         return 1
 
-    value = keys.decrypt(outputs[0])
+    value = keys.decrypt(outputs[0], signed=False)
     expected = 3
 
     if value != expected:

@@ -269,8 +269,14 @@ jobs:
         if: runner.os != 'Windows'
         run: chmod +x binaries/program_runner
 
-      - name: Install wheel
+      - name: Install wheel (Unix)
+        if: runner.os != 'Windows'
         run: pip install wheel/*.whl
+
+      - name: Install wheel (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: pip install (Get-ChildItem wheel/*.whl).FullName
 
       - name: Run integration test (Unix)
         if: runner.os != 'Windows'
