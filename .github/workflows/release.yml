@@ -156,12 +156,21 @@ jobs:
         with:
           ref: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.tag || github.ref }}
 
-      - name: Build
-        uses: houseabsolute/actions-rust-cross@v0
+      - uses: dtolnay/rust-toolchain@stable
         with:
-          target: ${{ matrix.target }}
-          args: --release
-          cross: ${{ contains(matrix.target, 'musl') }}
+          targets: ${{ matrix.target }}
+
+      - name: Install cross
+        if: contains(matrix.target, 'musl')
+        uses: taiki-e/install-action@cross
+
+      - name: Build (musl via cross)
+        if: contains(matrix.target, 'musl')
+        run: cross build --release --target ${{ matrix.target }}
+
+      - name: Build (native)
+        if: ${{ !contains(matrix.target, 'musl') }}
+        run: cargo build --release --target ${{ matrix.target }}
 
       - name: Package binaries (Unix)
         if: runner.os != 'Windows'
