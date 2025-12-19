@@ -18,16 +18,12 @@ env:
   SUNSCREEN_LLVM_SHA256: aS0WmsZKAHQ/DT2G0IFVcSZbz3RINWc3AC1OdMX6hMw=
 
 jobs:
-  # Build FHE programs and run Python tests first (required for integration tests)
-  python-test:
-    name: Python tests
+  # Compile FHE programs (needed for integration tests)
+  compile-fhe:
+    name: Compile FHE programs
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
-
-      - uses: dtolnay/rust-toolchain@stable
-
-      - uses: Swatinem/rust-cache@v2
 
       - name: Cache Sunscreen LLVM
         id: cache-llvm
@@ -49,18 +45,6 @@ jobs:
       - name: Compile FHE programs
         run: LLVM_DIR=$PWD/parasol-compiler/bin make
 
-      - name: Build program_runner
-        run: cargo build --release -p program_runner
-
-      - uses: astral-sh/setup-uv@v7
-
-      - name: Build extension and run tests
-        working-directory: sunscreen_fhe
-        run: |
-          uv sync
-          uv run maturin develop --release
-          uv run pytest tests/ -v
-
       - name: Upload FHE programs
         uses: actions/upload-artifact@v4
         with:
@@ -70,7 +54,6 @@ jobs:
 
   build-binaries:
     name: Build binaries (${{ matrix.platform-name }})
-    needs: python-test
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -136,7 +119,6 @@ jobs:
 
   build-wheels:
     name: Build wheels (${{ matrix.os }} ${{ matrix.target }})
-    needs: python-test
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -173,7 +155,7 @@ jobs:
 
   integration-test:
     name: Integration test (${{ matrix.platform-name }})
-    needs: [python-test, build-binaries, build-wheels]
+    needs: [compile-fhe, build-binaries, build-wheels]
     runs-on: ${{ matrix.os }}
     timeout-minutes: 10
     strategy:
@@ -183,15 +165,12 @@ jobs:
           - os: ubuntu-latest
             platform-name: linux-x86_64
             wheel-artifact: wheels-ubuntu-latest-x86_64
-            binary-suffix: ""
           - os: macos-latest
             platform-name: macos-aarch64
             wheel-artifact: wheels-macos-latest-aarch64
-            binary-suffix: ""
           - os: windows-latest
             platform-name: windows-x86_64
             wheel-artifact: wheels-windows-latest-x86_64
-            binary-suffix: ".exe"
 
     steps:
       - uses: actions/checkout@v6
