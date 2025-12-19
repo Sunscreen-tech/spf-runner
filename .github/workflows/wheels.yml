@@ -139,15 +139,12 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
-      - name: Install musl-tools
-        if: matrix.target == 'x86_64-unknown-linux-musl'
-        run: sudo apt-get install -y musl-tools
-
       - name: Build
         uses: houseabsolute/actions-rust-cross@v0
         with:
           target: ${{ matrix.target }}
           args: --release
+          cross: ${{ contains(matrix.target, 'musl') }}
 
       - name: Upload binaries (Unix)
         if: runner.os != 'Windows'
