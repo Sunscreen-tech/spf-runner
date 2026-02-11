@@ -1,6 +1,6 @@
 # Compiling a Parasol FHE Program
 
-Compile a fully homomorphic encryption (FHE) program that adds two encrypted integers using the Parasol compiler.
+Compile a fully homomorphic encryption (FHE) program that compares two encrypted integers using the Parasol compiler.
 
 ## Download the compiler
 
@@ -26,33 +26,33 @@ tar xzf parasol-compiler-linux-x86-64-2025-11-24.tar.gz -C parasol-compiler
 
 ## The source code
 
-`add.c` adds two encrypted `uint8_t` values and writes the result through an output pointer:
+`greater_than.c` compares two encrypted `uint8_t` values and writes the result through an output pointer:
 
 ```c
 #include <parasol.h>
 
-// [[clang::fhe_program]] marks a function as an FHE circuit entry point.
+// [[clang::fhe_program]] marks a function as an FHE program.
 // [[clang::encrypted]] marks a parameter as a ciphertext.
 // Parameters without [[clang::encrypted]] are plaintext (server-known values).
 // Outputs must use pointers; return values are not supported.
 // parasol.h ships with the compiler toolchain.
 
-[[clang::fhe_program]] void add(
+[[clang::fhe_program]] void greater_than(
     [[clang::encrypted]] uint8_t a,
     [[clang::encrypted]] uint8_t b,
-    [[clang::encrypted]] uint8_t *out
+    [[clang::encrypted]] bool *out
 ) {
-    *out = a + b;
+    *out = a > b;
 }
 ```
 
 ## Compile
 
 ```sh
-./parasol-compiler/bin/clang -O2 -target parasol -o add add.c
+./parasol-compiler/bin/clang -O2 -target parasol -o greater_than greater_than.c
 ```
 
 ## Output
 
-The resulting `add` file is a Parasol ELF binary, which can be used with the
+The resulting `greater_tha:` file is a Parasol ELF binary, which can be used with the
 SPF runner.
