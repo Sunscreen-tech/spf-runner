@@ -2,10 +2,10 @@
 
 #include <parasol.h>
 
-[[clang::fhe_program]] void add(
+[[clang::fhe_program]] void greater_than(
     [[clang::encrypted]] uint8_t a,
     [[clang::encrypted]] uint8_t b,
-    [[clang::encrypted]] uint8_t *out
+    [[clang::encrypted]] bool *out
 ) {
-    *out = a + b;
+    *out = a > b;
 }
