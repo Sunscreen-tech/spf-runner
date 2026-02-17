@@ -47,6 +47,15 @@ cargo test --release -p program_runner -p elf_validator
 make test-python
 ```
 
+## Benchmark
+
+```sh
+# Run all benchmarks
+make bench
+```
+
+See [bench/README.md](bench/README.md) for details.
+
 ## Lint
 
 ```sh

@@ -95,7 +95,7 @@ jobs:
           rm parasol.tar.gz
 
       - name: Compile FHE programs
-        run: LLVM_DIR=$PWD/parasol-compiler/bin make
+        run: LLVM_DIR=$PWD/parasol-compiler/bin make fhe-programs
 
       - name: Build program_runner
         run: cargo build --release -p program_runner

@@ -63,6 +63,6 @@ jobs:
           rm parasol.tar.gz
 
       - name: Compile FHE programs
-        run: LLVM_DIR=$PWD/parasol-compiler/bin make
+        run: LLVM_DIR=$PWD/parasol-compiler/bin make fhe-programs
 
       - run: cargo test --release -- --skip test_restart_server_s3_store
