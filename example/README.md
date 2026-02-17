@@ -54,5 +54,5 @@ tar xzf parasol-compiler-linux-x86-64-2025-11-24.tar.gz -C parasol-compiler
 
 ## Output
 
-The resulting `greater_tha:` file is a Parasol ELF binary, which can be used with the
+The resulting `greater_than` file is a Parasol ELF binary, which can be used with the
 SPF runner.
